@@ -46,3 +46,4 @@ app.*.map.json
 
 # Design
 design/
+functions/node_modules/

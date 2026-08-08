@@ -99,6 +99,12 @@ final userActiveEmergencyProvider = StreamProvider<EmergencyModel?>((ref) {
   return emergencyRepo.streamActiveEmergencyForUser(targetUid);
 });
 
+final singleEmergencyProvider =
+    StreamProvider.family<EmergencyModel?, String>((ref, emergencyId) {
+  final emergencyRepo = ref.watch(emergencyRepositoryProvider);
+  return emergencyRepo.streamEmergency(emergencyId);
+});
+
 final userSafetyHistoryProvider =
     StreamProvider<List<SafetyEventFirestoreModel>>((ref) {
   final activeUid = ref.watch(activeUserUidProvider);

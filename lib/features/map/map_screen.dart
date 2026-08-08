@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/app_colors.dart';
-import '../../providers/mock_state_provider.dart';
+import '../../providers/app_providers.dart';
 import '../../shared/widgets/map_placeholder_widget.dart';
 
 class MapScreen extends ConsumerWidget {
@@ -9,8 +9,6 @@ class MapScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(mockStateProvider);
-
     return Scaffold(
       backgroundColor: AppColors.background,
       body: Stack(
@@ -56,132 +54,149 @@ class MapScreen extends ConsumerWidget {
             left: 16,
             right: 16,
             bottom: 100,
-            child: Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppColors.surfaceContainer,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.surfaceVariant),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Colors.black45,
-                    blurRadius: 16,
-                    offset: Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Row(
-                    children: [
-                      CircleAvatar(
-                        radius: 22,
-                        backgroundImage: NetworkImage(
-                          state.peopleIProtect.first.avatarUrl,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              state.peopleIProtect.first.name,
-                              style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.onSurface,
-                              ),
-                            ),
-                            const Row(
-                              children: [
-                                Icon(Icons.shield_rounded,
-                                    size: 14, color: AppColors.tertiary),
-                                SizedBox(width: 4),
-                                Text(
-                                  'Protected • Safe',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: AppColors.tertiary,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                      CircleAvatar(
-                        backgroundColor: AppColors.surfaceVariant,
-                        child: IconButton(
-                          icon: const Icon(Icons.directions_rounded,
-                              color: AppColors.onSurface),
-                          onPressed: () {},
-                        ),
+            child: Builder(
+              builder: (context) {
+                final connectionsAsync = ref.watch(userFirestoreConnectionsProvider);
+                final connections = connectionsAsync.value ?? [];
+
+                final contactName =
+                    connections.isNotEmpty ? connections.first.displayName : 'RAKSHA SafeZone';
+                final contactPhone =
+                    connections.isNotEmpty ? connections.first.phoneNumber : 'Protection Active';
+
+                return Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceContainer,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppColors.surfaceVariant),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Colors.black45,
+                        blurRadius: 16,
+                        offset: Offset(0, 4),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12),
-                  Row(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Expanded(
-                        child: Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: AppColors.surface,
-                            borderRadius: BorderRadius.circular(8),
+                      Row(
+                        children: [
+                          CircleAvatar(
+                            radius: 22,
+                            backgroundColor: AppColors.primaryContainer,
+                            child: Text(
+                              contactName.isNotEmpty ? contactName[0].toUpperCase() : 'R',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.onPrimaryContainer,
+                              ),
+                            ),
                           ),
-                          child: const Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('Last Update',
-                                  style: TextStyle(
-                                      fontSize: 10,
-                                      color: AppColors.onSurfaceVariant)),
-                              Text('Just now',
-                                  style: TextStyle(
-                                      fontSize: 13,
-                                      color: AppColors.onSurface,
-                                      fontWeight: FontWeight.bold)),
-                            ],
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  contactName,
+                                  style: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.onSurface,
+                                  ),
+                                ),
+                                Row(
+                                  children: [
+                                    const Icon(Icons.shield_rounded,
+                                        size: 14, color: AppColors.tertiary),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      'Protected • $contactPhone',
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        color: AppColors.tertiary,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
+                          CircleAvatar(
+                            backgroundColor: AppColors.surfaceVariant,
+                            child: IconButton(
+                              icon: const Icon(Icons.directions_rounded,
+                                  color: AppColors.onSurface),
+                              onPressed: () {},
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: AppColors.surface,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: const Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('Battery',
-                                  style: TextStyle(
-                                      fontSize: 10,
-                                      color: AppColors.onSurfaceVariant)),
-                              Row(
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: AppColors.surface,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Icon(Icons.battery_full_rounded,
-                                      size: 14, color: AppColors.tertiary),
-                                  SizedBox(width: 4),
-                                  Text('92%',
+                                  Text('Last Update',
+                                      style: TextStyle(
+                                          fontSize: 10,
+                                          color: AppColors.onSurfaceVariant)),
+                                  Text('Just now',
                                       style: TextStyle(
                                           fontSize: 13,
                                           color: AppColors.onSurface,
                                           fontWeight: FontWeight.bold)),
                                 ],
                               ),
-                            ],
+                            ),
                           ),
-                        ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: AppColors.surface,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('Battery',
+                                      style: TextStyle(
+                                          fontSize: 10,
+                                          color: AppColors.onSurfaceVariant)),
+                                  Row(
+                                    children: [
+                                      Icon(Icons.battery_full_rounded,
+                                          size: 14, color: AppColors.tertiary),
+                                      SizedBox(width: 4),
+                                      Text('92%',
+                                          style: TextStyle(
+                                              fontSize: 13,
+                                              color: AppColors.onSurface,
+                                              fontWeight: FontWeight.bold)),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
-                ],
-              ),
+                );
+              },
             ),
           ),
         ],

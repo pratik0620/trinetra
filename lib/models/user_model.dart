@@ -7,6 +7,7 @@ class UserModel {
   final String name;
   final String phone;
   final String photoUrl;
+  final List<String> emergencyContacts;
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
@@ -17,6 +18,7 @@ class UserModel {
     required this.name,
     required this.phone,
     required this.photoUrl,
+    this.emergencyContacts = const [],
     this.createdAt,
     this.updatedAt,
   });
@@ -30,6 +32,8 @@ class UserModel {
     final lName = data['lastName'] ?? '';
     final fullName = data['displayName'] ?? data['name'] ?? (fName.isNotEmpty ? '$fName $lName'.trim() : 'RAKSHA User');
     final phoneNum = data['phoneNumber'] ?? data['phone'] ?? '';
+    final eContactsRaw = data['emergency_contacts'] ?? data['emergencyContacts'];
+    final List<String> eContacts = eContactsRaw is List ? List<String>.from(eContactsRaw) : [];
 
     return UserModel(
       uid: data['uid'] ?? doc.id,
@@ -39,6 +43,7 @@ class UserModel {
       phone: phoneNum,
       photoUrl: data['photoUrl'] ??
           'https://lh3.googleusercontent.com/aida-public/AB6AXuBSUEL7rzgOUfdodwwHNcQbn_MHokVlIecnYhN8TPN4KhvtW8M3TYZw1KPrm3UUYMfDPD-CyC6H4pnG_wuCRlbFOo0sHv6vRLEmIYBJTMFcxegdK9_q98JjiFSGeh6yTbJScbg111WeZv3X0Od_rjlCtLqLJWkOYc5ePgUjEra3ocWEwQrUEaX1TgYs2NEDlH1A4pxqtvMe0BMaKHD-3BH4qBOTfLnuZERSJxJPt7Kf2ghB4cM1e83C3w',
+      emergencyContacts: eContacts,
       createdAt: (data['createdAt'] as Timestamp?)?.toDate(),
       updatedAt: (data['updatedAt'] as Timestamp?)?.toDate(),
     );
@@ -54,6 +59,7 @@ class UserModel {
       'phoneNumber': phone,
       'phone': phone,
       'photoUrl': photoUrl,
+      'emergency_contacts': emergencyContacts,
       'createdAt': createdAt != null ? Timestamp.fromDate(createdAt!) : FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     };

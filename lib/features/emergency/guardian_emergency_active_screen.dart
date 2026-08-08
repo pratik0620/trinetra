@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/theme/app_colors.dart';
+import '../../models/user_model.dart';
 import '../../providers/app_providers.dart';
 import '../../providers/mock_state_provider.dart';
 import '../../shared/widgets/map_placeholder_widget.dart';
@@ -24,6 +25,7 @@ class _GuardianEmergencyActiveScreenState
     extends ConsumerState<GuardianEmergencyActiveScreen> {
   Timer? _timer;
   int _secondsAgo = 18;
+  UserModel? _victimProfile;
 
   @override
   void initState() {
@@ -41,15 +43,25 @@ class _GuardianEmergencyActiveScreenState
     super.dispose();
   }
 
+  void _loadVictimProfile(String victimUid) async {
+    if (_victimProfile != null) return;
+    final userRepo = ref.read(userRepositoryProvider);
+    final profile = await userRepo.getUserProfile(victimUid);
+    if (profile != null && mounted) {
+      setState(() => _victimProfile = profile);
+    }
+  }
+
   void _onRespond() async {
     final notifier = ref.read(mockStateProvider.notifier);
     notifier.respondToGuardianEmergency();
 
+    final activeUid = ref.read(activeUserUidProvider);
     final authUser = ref.read(authRepositoryProvider).currentUser;
     final emergencyRepo = ref.read(emergencyRepositoryProvider);
 
     final eId = widget.emergencyId ?? 'emergency_active_demo';
-    final guardianUid = authUser?.uid ?? 'guardian_ananya';
+    final guardianUid = activeUid ?? authUser?.uid ?? 'guardian_ananya';
 
     try {
       await emergencyRepo.respondToEmergency(
@@ -67,6 +79,19 @@ class _GuardianEmergencyActiveScreenState
 
   @override
   Widget build(BuildContext context) {
+    final eId = widget.emergencyId ?? 'emergency_active_demo';
+    final emergencyAsync = ref.watch(singleEmergencyProvider(eId));
+    final emergency = emergencyAsync.value;
+
+    if (emergency != null && emergency.userId.isNotEmpty) {
+      _loadVictimProfile(emergency.userId);
+    }
+
+    final victimName = _victimProfile?.displayName ?? 'Priya';
+    final status = emergency?.status ?? 'active';
+
+    final isCancelled = status == 'cancelled' || status == 'resolved';
+
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
@@ -74,47 +99,73 @@ class _GuardianEmergencyActiveScreenState
           children: [
             // Header Banner
             Container(
-              color: AppColors.errorContainer,
+              color: isCancelled
+                  ? AppColors.surfaceContainerHigh
+                  : AppColors.errorContainer,
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Row(
+                  Row(
                     children: [
-                      Icon(Icons.warning_amber_rounded,
-                          color: AppColors.error, size: 24),
-                      SizedBox(width: 8),
+                      Icon(
+                        isCancelled
+                            ? Icons.check_circle_outline_rounded
+                            : Icons.warning_amber_rounded,
+                        color: isCancelled
+                            ? AppColors.tertiary
+                            : AppColors.error,
+                        size: 24,
+                      ),
+                      const SizedBox(width: 8),
                       Text(
-                        'ACTIVE EMERGENCY',
+                        status == 'cancelled'
+                            ? 'SOS CANCELLED BY USER'
+                            : (status == 'resolved'
+                                ? 'EMERGENCY RESOLVED'
+                                : 'ACTIVE EMERGENCY'),
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
-                          color: AppColors.onErrorContainer,
+                          color: isCancelled
+                              ? AppColors.onSurface
+                              : AppColors.onErrorContainer,
                           letterSpacing: 1.0,
                         ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 6),
-                  const Text(
-                    'Priya needs help',
+                  Text(
+                    status == 'cancelled'
+                        ? '$victimName marked themselves as safe'
+                        : '$victimName needs help',
                     style: TextStyle(
-                      fontSize: 26,
+                      fontSize: 24,
                       fontWeight: FontWeight.bold,
-                      color: AppColors.onErrorContainer,
+                      color: isCancelled
+                          ? AppColors.onSurface
+                          : AppColors.onErrorContainer,
                     ),
                   ),
                   const SizedBox(height: 4),
                   Row(
                     children: [
-                      const Icon(Icons.schedule_rounded,
-                          size: 14, color: AppColors.onErrorContainer),
+                      Icon(
+                        Icons.schedule_rounded,
+                        size: 14,
+                        color: isCancelled
+                            ? AppColors.onSurfaceVariant
+                            : AppColors.onErrorContainer,
+                      ),
                       const SizedBox(width: 4),
                       Text(
                         'SOS triggered $_secondsAgo seconds ago',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 13,
-                          color: AppColors.onErrorContainer,
+                          color: isCancelled
+                              ? AppColors.onSurfaceVariant
+                              : AppColors.onErrorContainer,
                         ),
                       ),
                     ],
@@ -124,10 +175,10 @@ class _GuardianEmergencyActiveScreenState
             ),
 
             // Live Map Area
-            const Expanded(
+            Expanded(
               child: MapPlaceholderWidget(
                 isEmergencyMode: true,
-                focusName: 'Priya',
+                focusName: victimName,
                 distanceText: '2.4 km',
               ),
             ),
@@ -159,9 +210,9 @@ class _GuardianEmergencyActiveScreenState
                     crossAxisSpacing: 8,
                     children: [
                       _buildInfoTile(
-                          'Alert Type', 'Manual Stomp', AppColors.emergency),
+                          'Alert Type', 'Manual SOS', AppColors.emergency),
                       _buildInfoTile(
-                          'Status', 'SOS Active', AppColors.emergency),
+                          'Status', status.toUpperCase(), AppColors.emergency),
                       _buildInfoTile(
                           'Location', 'Live Tracking', AppColors.onSurface),
                       _buildInfoTile(
@@ -175,7 +226,7 @@ class _GuardianEmergencyActiveScreenState
                     width: double.infinity,
                     height: 60,
                     child: ElevatedButton(
-                      onPressed: _onRespond,
+                      onPressed: isCancelled ? null : _onRespond,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.primaryContainer,
                         foregroundColor: AppColors.onPrimaryContainer,
@@ -184,9 +235,9 @@ class _GuardianEmergencyActiveScreenState
                         ),
                         elevation: 6,
                       ),
-                      child: const Text(
-                        "I'M RESPONDING",
-                        style: TextStyle(
+                      child: Text(
+                        isCancelled ? 'EMERGENCY CLOSED' : "I'M RESPONDING",
+                        style: const TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
                           letterSpacing: 1.0,
@@ -212,9 +263,9 @@ class _GuardianEmergencyActiveScreenState
                               ),
                             ),
                             icon: const Icon(Icons.call_rounded, size: 18),
-                            label: const Text(
-                              'CALL PRIYA',
-                              style: TextStyle(
+                            label: Text(
+                              'CALL ${victimName.toUpperCase()}',
+                              style: const TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.bold,
                               ),

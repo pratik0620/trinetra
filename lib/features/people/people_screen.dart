@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/app_colors.dart';
 import '../../models/connection_request_model.dart';
 import '../../providers/app_providers.dart';
-import '../../providers/mock_state_provider.dart';
 import '../../shared/widgets/add_connection_bottom_sheet.dart';
 
 class PeopleScreen extends ConsumerWidget {
@@ -16,9 +15,7 @@ class PeopleScreen extends ConsumerWidget {
       backgroundColor: Colors.transparent,
       builder: (ctx) {
         return AddConnectionBottomSheet(
-          onAdd: (name, rel) {
-            ref.read(mockStateProvider.notifier).addConnection(name, rel);
-          },
+          onAdd: (name, rel) {},
         );
       },
     );
@@ -75,14 +72,73 @@ class PeopleScreen extends ConsumerWidget {
     }
   }
 
+  void _confirmRemoveConnection(
+      BuildContext context, WidgetRef ref, UserConnectionItem contact) {
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          backgroundColor: AppColors.surfaceContainerHigh,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: const Text(
+            'Remove Connection?',
+            style: TextStyle(color: AppColors.onSurface, fontWeight: FontWeight.bold),
+          ),
+          content: Text(
+            'Are you sure you want to remove ${contact.displayName} from your emergency contacts?',
+            style: const TextStyle(color: AppColors.onSurfaceVariant, fontSize: 14),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Cancel', style: TextStyle(color: AppColors.onSurfaceVariant)),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                Navigator.of(ctx).pop();
+                final activeUid = ref.read(activeUserUidProvider) ??
+                    ref.read(authRepositoryProvider).currentUser?.uid;
+
+                if (activeUid != null) {
+                  final connRepo = ref.read(connectionRepositoryProvider);
+                  await connRepo.removeConnection(
+                    currentUserId: activeUid,
+                    targetUserId: contact.userId,
+                  );
+                }
+
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      backgroundColor: AppColors.surfaceContainerHigh,
+                      content: Text('Removed connection with ${contact.displayName}'),
+                    ),
+                  );
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.emergency,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Remove'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(mockStateProvider);
     final incomingRequestsAsync = ref.watch(incomingConnectionRequestsProvider);
     final firestoreConnectionsAsync = ref.watch(userFirestoreConnectionsProvider);
 
     final incomingRequests = incomingRequestsAsync.value ?? [];
     final firestoreConnections = firestoreConnectionsAsync.value ?? [];
+
+    final isOffline = firestoreConnectionsAsync.hasError;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -102,6 +158,33 @@ class PeopleScreen extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Offline Indicator Banner
+              if (isOffline) ...[
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceContainerHigh,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.outlineVariant),
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.wifi_off_rounded, size: 18, color: AppColors.outline),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Offline — showing last synchronized connections',
+                          style: TextStyle(
+                              fontSize: 12, color: AppColors.onSurfaceVariant),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+
               const Text(
                 'My RAKSHA Network',
                 style: TextStyle(
@@ -231,7 +314,7 @@ class PeopleScreen extends ConsumerWidget {
                 const SizedBox(height: 20),
               ],
 
-              // Section 1: People I Protect
+              // Section 1: People I Protect / Active Connections
               const Text(
                 'PEOPLE I PROTECT',
                 style: TextStyle(
@@ -243,7 +326,6 @@ class PeopleScreen extends ConsumerWidget {
               ),
               const SizedBox(height: 12),
 
-              // Render Firestore Connections first if present
               if (firestoreConnections.isNotEmpty) ...[
                 ...firestoreConnections.map((item) {
                   return Container(
@@ -281,6 +363,8 @@ class PeopleScreen extends ConsumerWidget {
                             children: [
                               Text(
                                 item.displayName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
@@ -296,97 +380,72 @@ class PeopleScreen extends ConsumerWidget {
                                     color: AppColors.tertiary,
                                   ),
                                   const SizedBox(width: 4),
-                                  Text(
-                                    'Connected (${item.phoneNumber})',
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      color: AppColors.onSurfaceVariant,
+                                  Expanded(
+                                    child: Text(
+                                      'Connected (${item.phoneNumber})',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        color: AppColors.onSurfaceVariant,
+                                      ),
                                     ),
                                   ),
                                 ],
                               ),
                             ],
                           ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.remove_circle_outline_rounded,
+                              color: AppColors.outline),
+                          tooltip: 'Remove Connection',
+                          onPressed: () =>
+                              _confirmRemoveConnection(context, ref, item),
                         ),
                       ],
                     ),
                   );
                 }),
               ] else ...[
-                // Fallback Mock Network
-                ...state.peopleIProtect.map((contact) {
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: contact.sosActive
-                          ? AppColors.errorContainer.withOpacity(0.2)
-                          : AppColors.surfaceContainer,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border(
-                        left: BorderSide(
-                          color: contact.sosActive
-                              ? AppColors.emergency
-                              : AppColors.tertiary,
-                          width: 4,
+                // EMPTY STATE — ZERO MOCK DATA
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceContainerHigh,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppColors.surfaceVariant),
+                  ),
+                  child: Column(
+                    children: [
+                      const CircleAvatar(
+                        radius: 28,
+                        backgroundColor: AppColors.surfaceVariant,
+                        child: Icon(Icons.people_outline_rounded,
+                            size: 32, color: AppColors.outline),
+                      ),
+                      const SizedBox(height: 12),
+                      const Text(
+                        'No RAKSHA Connections Yet',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.onSurface,
                         ),
                       ),
-                    ),
-                    child: Row(
-                      children: [
-                        CircleAvatar(
-                          radius: 24,
-                          backgroundImage: NetworkImage(contact.avatarUrl),
+                      const SizedBox(height: 6),
+                      const Text(
+                        'Tap "Add RAKSHA Connection" below to add trusted emergency contacts.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: AppColors.onSurfaceVariant,
                         ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                contact.name,
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.onSurface,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Row(
-                                children: [
-                                  Icon(
-                                    contact.sosActive
-                                        ? Icons.warning_rounded
-                                        : Icons.check_circle_rounded,
-                                    size: 14,
-                                    color: contact.sosActive
-                                        ? AppColors.emergency
-                                        : AppColors.tertiary,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    contact.sosActive
-                                        ? 'SOS Active'
-                                        : 'Safe (Updated 2 min ago)',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: contact.sosActive
-                                          ? AppColors.emergency
-                                          : AppColors.onSurfaceVariant,
-                                      fontWeight: contact.sosActive
-                                          ? FontWeight.bold
-                                          : FontWeight.normal,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }),
+                      ),
+                    ],
+                  ),
+                ),
               ],
 
               const SizedBox(height: 24),
@@ -461,52 +520,23 @@ class PeopleScreen extends ConsumerWidget {
                   },
                 ),
               ] else ...[
-                GridView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    crossAxisSpacing: 12,
-                    mainAxisSpacing: 12,
-                    childAspectRatio: 1.1,
+                // EMPTY STATE
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceContainerHigh,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppColors.surfaceVariant),
                   ),
-                  itemCount: state.peopleWhoProtectMe.length,
-                  itemBuilder: (context, index) {
-                    final contact = state.peopleWhoProtectMe[index];
-                    return Container(
-                      decoration: BoxDecoration(
-                        color: AppColors.surfaceContainer,
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          CircleAvatar(
-                            radius: 28,
-                            backgroundImage: NetworkImage(contact.avatarUrl),
-                          ),
-                          const SizedBox(height: 10),
-                          Text(
-                            contact.name,
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.onSurface,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            contact.relationship,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: AppColors.onSurfaceVariant,
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
+                  child: const Text(
+                    'No guardians connected yet',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: AppColors.onSurfaceVariant,
+                    ),
+                  ),
                 ),
               ],
             ],

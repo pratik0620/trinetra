@@ -5,7 +5,6 @@ import '../../core/theme/app_colors.dart';
 import '../../models/app_models.dart';
 import '../../providers/app_providers.dart';
 import '../../providers/mock_state_provider.dart';
-import '../../shared/widgets/person_card.dart';
 import '../../shared/widgets/safety_status_card.dart';
 import '../../shared/widgets/shoe_status_card.dart';
 import '../../shared/widgets/sos_button.dart';
@@ -18,16 +17,37 @@ class HomeScreen extends ConsumerWidget {
     final notifier = ref.read(mockStateProvider.notifier);
     notifier.triggerMySos();
 
+    final authService = ref.read(authServiceProvider);
+    final sessionUid = await authService.getLocalSessionUid();
     final activeUid = ref.read(activeUserUidProvider);
     final authUser = ref.read(authRepositoryProvider).currentUser;
     final emergencyRepo = ref.read(emergencyRepositoryProvider);
 
-    final userId = activeUid ?? authUser?.uid ?? 'user_custom';
+    final userId = activeUid ?? sessionUid ?? authUser?.uid ?? '';
     try {
-      await emergencyRepo.createEmergency(
+      final emergencyId = await emergencyRepo.createEmergency(
         userId: userId,
         deviceId: 'device_raksha_shoe_01',
         triggerType: 'manual_sos',
+      );
+
+      debugPrint('====================================');
+      debugPrint('SOS TRIGGERED');
+      debugPrint('userId = $userId');
+      debugPrint('emergencyId = $emergencyId');
+
+      final userRepo = ref.read(userRepositoryProvider);
+      final userProfile = await userRepo.getUserProfile(userId);
+      debugPrint('EMERGENCY CONTACTS VERIFICATION:');
+      debugPrint('emergency_contacts = ${userProfile?.emergencyContacts}');
+      debugPrint('====================================');
+
+      final notifService = ref.read(notificationServiceProvider);
+      await notifService.sendSosNotificationToContacts(
+        senderUid: userId,
+        emergencyId: emergencyId,
+        recipientUids: userProfile?.emergencyContacts ?? [],
+        senderName: userProfile?.name ?? 'RAKSHA Contact',
       );
     } catch (e) {
       debugPrint('Firestore emergency creation note: $e');
@@ -166,17 +186,93 @@ class HomeScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 12),
 
-                  SizedBox(
-                    height: 80,
-                    child: ListView.separated(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: state.peopleIProtect.length,
-                      separatorBuilder: (_, __) => const SizedBox(width: 12),
-                      itemBuilder: (context, index) {
-                        final contact = state.peopleIProtect[index];
-                        return PersonCard(contact: contact);
-                      },
-                    ),
+                  Builder(
+                    builder: (context) {
+                      final firestoreConnectionsAsync =
+                          ref.watch(userFirestoreConnectionsProvider);
+                      final connections = firestoreConnectionsAsync.value ?? [];
+
+                      if (connections.isEmpty) {
+                        return Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: AppColors.surfaceContainer,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Text(
+                            'No connections added yet. Tap "View all" to manage.',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: AppColors.onSurfaceVariant,
+                            ),
+                          ),
+                        );
+                      }
+
+                      return SizedBox(
+                        height: 72,
+                        child: ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: connections.length,
+                          separatorBuilder: (_, __) => const SizedBox(width: 12),
+                          itemBuilder: (context, index) {
+                            final contact = connections[index];
+                            return Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 10),
+                              decoration: BoxDecoration(
+                                color: AppColors.surfaceContainer,
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                    color: AppColors.surfaceVariant),
+                              ),
+                              child: Row(
+                                children: [
+                                  CircleAvatar(
+                                    radius: 18,
+                                    backgroundColor: AppColors.primaryContainer,
+                                    child: Text(
+                                      contact.displayName.isNotEmpty
+                                          ? contact.displayName[0].toUpperCase()
+                                          : 'C',
+                                      style: const TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.bold,
+                                        color: AppColors.onPrimaryContainer,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        contact.displayName,
+                                        style: const TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.bold,
+                                          color: AppColors.onSurface,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      const Text(
+                                        'Connected',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: AppColors.tertiary,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                      );
+                    },
                   ),
                 ],
               ),

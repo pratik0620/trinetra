@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../core/router/app_router.dart';
 import '../../core/theme/app_colors.dart';
 import '../../providers/app_providers.dart';
 import '../../providers/mock_state_provider.dart';
@@ -61,6 +62,13 @@ class _NameSetupScreenState extends ConsumerState<NameSetupScreen> {
 
       ref.read(activeUserUidProvider.notifier).state = userProfile.uid;
       ref.read(mockStateProvider.notifier).login();
+
+      ref.read(notificationServiceProvider).initialize(
+        userProfile.uid,
+        onEmergencyTap: (emergencyId) {
+          AppRouter.router.go('/guardian-sos-active?emergencyId=$emergencyId');
+        },
+      );
 
       if (mounted) {
         context.go('/home');
