@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../models/connection_model.dart';
+import '../models/connection_request_model.dart';
+import '../models/user_model.dart';
 
 class ConnectionRepository {
   final FirebaseFirestore _firestore;
@@ -7,71 +8,112 @@ class ConnectionRepository {
   ConnectionRepository({FirebaseFirestore? firestore})
       : _firestore = firestore ?? FirebaseFirestore.instance;
 
-  CollectionReference<Map<String, dynamic>> get _connections =>
-      _firestore.collection('connections');
+  CollectionReference<Map<String, dynamic>> get _requests =>
+      _firestore.collection('connectionRequests');
 
+  CollectionReference<Map<String, dynamic>> _userConnections(String userId) =>
+      _firestore.collection('users').doc(userId).collection('connections');
+
+  /// Sends a connection request from sender to receiver.
+  /// Checks for existing pending requests first to prevent duplicates.
   Future<void> sendConnectionRequest({
-    required String requesterId,
-    required String receiverId,
-    required String relationship,
-    bool canReceiveSOS = true,
-    bool canShareLocation = true,
+    required UserModel sender,
+    required UserModel receiver,
   }) async {
-    final docRef = _connections.doc();
-    final connection = ConnectionModel(
+    // 1. Check for duplicate pending requests
+    final existingSnap = await _requests
+        .where('senderId', isEqualTo: sender.uid)
+        .where('receiverId', isEqualTo: receiver.uid)
+        .where('status', isEqualTo: 'pending')
+        .get();
+
+    if (existingSnap.docs.isNotEmpty) {
+      throw 'A connection request is already pending for this contact.';
+    }
+
+    // Also check reverse pending request
+    final reverseSnap = await _requests
+        .where('senderId', isEqualTo: receiver.uid)
+        .where('receiverId', isEqualTo: sender.uid)
+        .where('status', isEqualTo: 'pending')
+        .get();
+
+    if (reverseSnap.docs.isNotEmpty) {
+      throw 'This contact has already sent you a connection request.';
+    }
+
+    // 2. Create new connection request
+    final docRef = _requests.doc();
+    final request = ConnectionRequestModel(
       id: docRef.id,
-      requesterId: requesterId,
-      receiverId: receiverId,
-      relationship: relationship,
-      canReceiveSOS: canReceiveSOS,
-      canShareLocation: canShareLocation,
+      senderId: sender.uid,
+      senderPhone: sender.phone,
+      senderName: sender.name,
+      receiverId: receiver.uid,
+      receiverPhone: receiver.phone,
       status: 'pending',
+      createdAt: DateTime.now(),
     );
-    await docRef.set(connection.toMap());
+
+    await docRef.set(request.toMap());
   }
 
-  Future<void> acceptConnectionRequest(String connectionId) async {
-    await _connections.doc(connectionId).update({
+  /// Streams incoming pending requests for a user in real-time.
+  Stream<List<ConnectionRequestModel>> streamIncomingRequests(String receiverId) {
+    return _requests
+        .where('receiverId', isEqualTo: receiverId)
+        .where('status', isEqualTo: 'pending')
+        .snapshots()
+        .map((snap) => snap.docs
+            .map((doc) => ConnectionRequestModel.fromFirestore(doc))
+            .toList());
+  }
+
+  /// Accepts a connection request and creates bidirectional Firestore entries in users/{uid}/connections.
+  Future<void> acceptRequest(ConnectionRequestModel request) async {
+    // 1. Update request status to accepted
+    await _requests.doc(request.id).update({
       'status': 'accepted',
       'updatedAt': FieldValue.serverTimestamp(),
     });
+
+    // 2. Create entry in sender's connections
+    final senderConnItem = UserConnectionItem(
+      userId: request.receiverId,
+      phoneNumber: request.receiverPhone,
+      displayName: 'RAKSHA Contact',
+      createdAt: DateTime.now(),
+    );
+
+    await _userConnections(request.senderId)
+        .doc(request.receiverId)
+        .set(senderConnItem.toMap(), SetOptions(merge: true));
+
+    // 3. Create entry in receiver's connections
+    final receiverConnItem = UserConnectionItem(
+      userId: request.senderId,
+      phoneNumber: request.senderPhone,
+      displayName: request.senderName,
+      createdAt: DateTime.now(),
+    );
+
+    await _userConnections(request.receiverId)
+        .doc(request.senderId)
+        .set(receiverConnItem.toMap(), SetOptions(merge: true));
   }
 
-  Future<void> rejectConnectionRequest(String connectionId) async {
-    await _connections.doc(connectionId).update({
+  /// Rejects a connection request.
+  Future<void> rejectRequest(String requestId) async {
+    await _requests.doc(requestId).update({
       'status': 'rejected',
       'updatedAt': FieldValue.serverTimestamp(),
     });
   }
 
-  Stream<List<ConnectionModel>> streamConnectionsForUser(String uid) {
-    // Queries all connections involving uid as requester or receiver
-    final requesterStream = _connections
-        .where('requesterId', isEqualTo: uid)
-        .where('status', isEqualTo: 'accepted')
-        .snapshots();
-
-    return requesterStream.asyncMap((reqSnap) async {
-      final recSnap = await _connections
-          .where('receiverId', isEqualTo: uid)
-          .where('status', isEqualTo: 'accepted')
-          .get();
-
-      final list1 = reqSnap.docs.map((d) => ConnectionModel.fromFirestore(d)).toList();
-      final list2 = recSnap.docs.map((d) => ConnectionModel.fromFirestore(d)).toList();
-
-      final combined = [...list1, ...list2];
-      final uniqueMap = {for (var item in combined) item.id: item};
-      return uniqueMap.values.toList();
-    });
-  }
-
-  Stream<List<ConnectionModel>> streamPendingRequests(String uid) {
-    return _connections
-        .where('receiverId', isEqualTo: uid)
-        .where('status', isEqualTo: 'pending')
-        .snapshots()
-        .map((snap) =>
-            snap.docs.map((doc) => ConnectionModel.fromFirestore(doc)).toList());
+  /// Streams accepted connections for a user from users/{userId}/connections subcollection.
+  Stream<List<UserConnectionItem>> streamUserConnections(String userId) {
+    return _userConnections(userId).snapshots().map((snap) => snap.docs
+        .map((doc) => UserConnectionItem.fromFirestore(doc))
+        .toList());
   }
 }

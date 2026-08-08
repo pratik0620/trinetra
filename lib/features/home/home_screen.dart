@@ -18,10 +18,11 @@ class HomeScreen extends ConsumerWidget {
     final notifier = ref.read(mockStateProvider.notifier);
     notifier.triggerMySos();
 
+    final activeUid = ref.read(activeUserUidProvider);
     final authUser = ref.read(authRepositoryProvider).currentUser;
     final emergencyRepo = ref.read(emergencyRepositoryProvider);
 
-    final userId = authUser?.uid ?? 'user_custom';
+    final userId = activeUid ?? authUser?.uid ?? 'user_custom';
     try {
       await emergencyRepo.createEmergency(
         userId: userId,

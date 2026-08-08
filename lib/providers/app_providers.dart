@@ -1,6 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../models/connection_model.dart';
+import '../models/connection_request_model.dart';
 import '../models/emergency_model.dart';
 import '../models/safety_event_model.dart';
 import '../models/user_model.dart';
@@ -53,7 +53,7 @@ final currentUserProfileProvider = StreamProvider<UserModel?>((ref) {
   return userRepo.streamUserProfile(targetUid);
 });
 
-final userConnectionsProvider = StreamProvider<List<ConnectionModel>>((ref) {
+final userConnectionsProvider = StreamProvider<List<UserConnectionItem>>((ref) {
   final activeUid = ref.watch(activeUserUidProvider);
   final authUser = ref.watch(authStateProvider).value;
   final targetUid = activeUid ?? authUser?.uid;
@@ -61,7 +61,31 @@ final userConnectionsProvider = StreamProvider<List<ConnectionModel>>((ref) {
   if (targetUid == null) return Stream.value([]);
 
   final connRepo = ref.watch(connectionRepositoryProvider);
-  return connRepo.streamConnectionsForUser(targetUid);
+  return connRepo.streamUserConnections(targetUid);
+});
+
+final incomingConnectionRequestsProvider =
+    StreamProvider<List<ConnectionRequestModel>>((ref) {
+  final activeUid = ref.watch(activeUserUidProvider);
+  final authUser = ref.watch(authStateProvider).value;
+  final targetUid = activeUid ?? authUser?.uid;
+
+  if (targetUid == null) return Stream.value([]);
+
+  final connRepo = ref.watch(connectionRepositoryProvider);
+  return connRepo.streamIncomingRequests(targetUid);
+});
+
+final userFirestoreConnectionsProvider =
+    StreamProvider<List<UserConnectionItem>>((ref) {
+  final activeUid = ref.watch(activeUserUidProvider);
+  final authUser = ref.watch(authStateProvider).value;
+  final targetUid = activeUid ?? authUser?.uid;
+
+  if (targetUid == null) return Stream.value([]);
+
+  final connRepo = ref.watch(connectionRepositoryProvider);
+  return connRepo.streamUserConnections(targetUid);
 });
 
 final userActiveEmergencyProvider = StreamProvider<EmergencyModel?>((ref) {

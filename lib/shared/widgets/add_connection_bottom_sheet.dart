@@ -19,11 +19,12 @@ class AddConnectionBottomSheet extends ConsumerStatefulWidget {
 class _AddConnectionBottomSheetState
     extends ConsumerState<AddConnectionBottomSheet> {
   final _phoneController = TextEditingController();
-  final _nameController = TextEditingController(text: 'Riya Patel');
+  final _nameController = TextEditingController();
   String _selectedRelationship = 'Friend';
   bool _isEmergencyContact = true;
   bool _canReceiveSos = true;
   bool _isSubmitting = false;
+  String? _errorMessage;
 
   @override
   void dispose() {
@@ -33,47 +34,80 @@ class _AddConnectionBottomSheetState
   }
 
   void _submit() async {
-    final name = _nameController.text.trim();
-    final phone = _phoneController.text.trim();
-    if (name.isEmpty) return;
+    final rawPhone = _phoneController.text.trim();
 
-    setState(() => _isSubmitting = true);
-
-    final authUser = ref.read(authRepositoryProvider).currentUser;
-    final userRepo = ref.read(userRepositoryProvider);
-    final connRepo = ref.read(connectionRepositoryProvider);
-
-    if (authUser != null) {
-      try {
-        final foundUser = phone.isNotEmpty
-            ? await userRepo.searchUserByPhone(phone)
-            : null;
-        final receiverUid = foundUser?.uid ?? 'user_receiver_placeholder';
-
-        await connRepo.sendConnectionRequest(
-          requesterId: authUser.uid,
-          receiverId: receiverUid,
-          relationship: _selectedRelationship,
-          canReceiveSOS: _canReceiveSos,
-          canShareLocation: true,
-        );
-      } catch (e) {
-        debugPrint('Firestore connection creation note: $e');
-      }
+    if (rawPhone.isEmpty) {
+      setState(() => _errorMessage = 'Please enter a phone number.');
+      return;
     }
 
-    widget.onAdd(name, _selectedRelationship);
-    if (mounted) {
-      Navigator.of(context).pop();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          backgroundColor: AppColors.tertiaryContainer,
-          content: Text(
-            'Connection request sent to $name!',
-            style: const TextStyle(color: AppColors.onTertiaryContainer),
-          ),
-        ),
+    setState(() {
+      _isSubmitting = true;
+      _errorMessage = null;
+    });
+
+    final authService = ref.read(authServiceProvider);
+    final userRepo = ref.read(userRepositoryProvider);
+    final connRepo = ref.read(connectionRepositoryProvider);
+    final currentUserProfile = ref.read(currentUserProfileProvider).value;
+
+    final normalizedPhone = authService.normalizePhoneNumber(rawPhone);
+
+    try {
+      // 1. Search Firestore users collection for User B
+      final foundUser = await userRepo.searchUserByPhone(normalizedPhone);
+
+      if (foundUser == null) {
+        // User B does not exist -> Do NOT show "Request Sent"
+        setState(() {
+          _errorMessage = 'No RAKSHA user found with this phone number.';
+          _isSubmitting = false;
+        });
+        return;
+      }
+
+      if (currentUserProfile == null) {
+        setState(() {
+          _errorMessage = 'User profile not found. Please log in again.';
+          _isSubmitting = false;
+        });
+        return;
+      }
+
+      if (foundUser.uid == currentUserProfile.uid) {
+        setState(() {
+          _errorMessage = 'You cannot add yourself as a connection.';
+          _isSubmitting = false;
+        });
+        return;
+      }
+
+      // 2. Create connection request in Firestore (checks duplicates inside repository)
+      await connRepo.sendConnectionRequest(
+        sender: currentUserProfile,
+        receiver: foundUser,
       );
+
+      // 3. Only AFTER Firestore write succeeds -> Show success notification
+      widget.onAdd(foundUser.name, _selectedRelationship);
+
+      if (mounted) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: AppColors.tertiaryContainer,
+            content: Text(
+              'Request Sent to ${foundUser.name}!',
+              style: const TextStyle(color: AppColors.onTertiaryContainer),
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      setState(() {
+        _errorMessage = e.toString();
+        _isSubmitting = false;
+      });
     }
   }
 
@@ -127,94 +161,34 @@ class _AddConnectionBottomSheetState
             ),
             const SizedBox(height: 16),
 
-            // Method choices
-            Row(
-              children: [
-                Expanded(
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceVariant,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Column(
-                      children: [
-                        CircleAvatar(
-                          backgroundColor: AppColors.primaryContainer,
-                          child: Icon(Icons.dialpad_rounded,
-                              color: AppColors.onPrimaryContainer),
-                        ),
-                        SizedBox(height: 8),
-                        Text(
-                          'Search by\nphone number',
-                          textAlign: TextAlign.center,
-                          style:
-                              TextStyle(fontSize: 12, color: AppColors.onSurface),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceVariant,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppColors.primary),
-                    ),
-                    child: const Column(
-                      children: [
-                        CircleAvatar(
-                          backgroundColor: AppColors.primaryContainer,
-                          child: Icon(Icons.qr_code_scanner_rounded,
-                              color: AppColors.onPrimaryContainer),
-                        ),
-                        SizedBox(height: 8),
-                        Text(
-                          'Scan QR\ncode',
-                          textAlign: TextAlign.center,
-                          style:
-                              TextStyle(fontSize: 12, color: AppColors.onSurface),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-
-            const Text(
-              'Name',
-              style: TextStyle(
-                fontSize: 12,
-                color: AppColors.onSurfaceVariant,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            const SizedBox(height: 4),
-            TextField(
-              controller: _nameController,
-              style: const TextStyle(color: AppColors.onSurface),
-              decoration: InputDecoration(
-                hintText: 'Enter contact name',
-                hintStyle: const TextStyle(color: AppColors.outline),
-                filled: true,
-                fillColor: AppColors.surfaceVariant,
-                prefixIcon: const Icon(Icons.person_outline_rounded,
-                    color: AppColors.onSurfaceVariant),
-                border: OutlineInputBorder(
+            if (_errorMessage != null) ...[
+              Container(
+                padding: const EdgeInsets.all(12),
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: AppColors.errorContainer.withOpacity(0.2),
                   borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide.none,
+                  border: Border.all(color: AppColors.emergency),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.error_outline_rounded,
+                        color: AppColors.emergency, size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _errorMessage!,
+                        style: const TextStyle(
+                            color: AppColors.onErrorContainer, fontSize: 13),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ),
-            const SizedBox(height: 12),
+            ],
 
             const Text(
-              'Phone Number (Optional)',
+              'Phone Number',
               style: TextStyle(
                 fontSize: 12,
                 color: AppColors.onSurfaceVariant,
@@ -227,7 +201,7 @@ class _AddConnectionBottomSheetState
               keyboardType: TextInputType.phone,
               style: const TextStyle(color: AppColors.onSurface),
               decoration: InputDecoration(
-                hintText: '+91 98765 43210',
+                hintText: 'e.g. 8369775954 or +91 8369775954',
                 hintStyle: const TextStyle(color: AppColors.outline),
                 filled: true,
                 fillColor: AppColors.surfaceVariant,
@@ -319,9 +293,18 @@ class _AddConnectionBottomSheetState
                     borderRadius: BorderRadius.circular(27),
                   ),
                 ),
-                icon: const Icon(Icons.send_rounded),
+                icon: _isSubmitting
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppColors.onPrimary,
+                        ),
+                      )
+                    : const Icon(Icons.send_rounded),
                 label: Text(
-                  _isSubmitting ? 'Sending...' : 'Send Request',
+                  _isSubmitting ? 'Sending Request...' : 'Send Request',
                   style: const TextStyle(
                       fontSize: 16, fontWeight: FontWeight.bold),
                 ),

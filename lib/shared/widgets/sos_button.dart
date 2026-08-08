@@ -20,23 +20,33 @@ class _SOSButtonState extends State<SOSButton> {
   Timer? _holdTimer;
   double _progress = 0.0; // 0.0 to 1.0
   bool _isPressed = false;
+  bool _isTriggered = false;
   static const int _holdDurationMs = 2000;
   static const int _tickIntervalMs = 20;
 
   void _startHold() {
+    if (_isTriggered) return;
+
+    _holdTimer?.cancel();
     setState(() {
       _isPressed = true;
       _progress = 0.0;
+      _isTriggered = false;
     });
 
-    _holdTimer?.cancel();
     _holdTimer = Timer.periodic(
       const Duration(milliseconds: _tickIntervalMs),
       (timer) {
+        if (!mounted) {
+          timer.cancel();
+          return;
+        }
+
         setState(() {
           _progress += _tickIntervalMs / _holdDurationMs;
           if (_progress >= 1.0) {
             _progress = 1.0;
+            _isTriggered = true;
             _holdTimer?.cancel();
             HapticFeedback.vibrate();
             widget.onTrigger();
@@ -48,10 +58,13 @@ class _SOSButtonState extends State<SOSButton> {
 
   void _endHold() {
     _holdTimer?.cancel();
-    setState(() {
-      _isPressed = false;
-      _progress = 0.0;
-    });
+    if (mounted) {
+      setState(() {
+        _isPressed = false;
+        _progress = 0.0;
+        _isTriggered = false;
+      });
+    }
   }
 
   @override
@@ -66,10 +79,10 @@ class _SOSButtonState extends State<SOSButton> {
       child: SizedBox(
         width: 180,
         height: 180,
-        child: GestureDetector(
-          onTapDown: (_) => _startHold(),
-          onTapUp: (_) => _endHold(),
-          onTapCancel: () => _endHold(),
+        child: Listener(
+          onPointerDown: (_) => _startHold(),
+          onPointerUp: (_) => _endHold(),
+          onPointerCancel: (_) => _endHold(),
           child: Stack(
             alignment: Alignment.center,
             children: [
