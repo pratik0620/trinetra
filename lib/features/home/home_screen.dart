@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/theme/app_colors.dart';
 import '../../models/app_models.dart';
+import '../../providers/app_providers.dart';
 import '../../providers/mock_state_provider.dart';
 import '../../shared/widgets/person_card.dart';
 import '../../shared/widgets/safety_status_card.dart';
@@ -13,10 +14,34 @@ import '../emergency/guardian_notification_banner.dart';
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
+  void _onSosTriggered(BuildContext context, WidgetRef ref) async {
+    final notifier = ref.read(mockStateProvider.notifier);
+    notifier.triggerMySos();
+
+    final authUser = ref.read(authRepositoryProvider).currentUser;
+    final emergencyRepo = ref.read(emergencyRepositoryProvider);
+
+    final userId = authUser?.uid ?? 'user_custom';
+    try {
+      await emergencyRepo.createEmergency(
+        userId: userId,
+        deviceId: 'device_raksha_shoe_01',
+        triggerType: 'manual_sos',
+      );
+    } catch (e) {
+      debugPrint('Firestore emergency creation note: $e');
+    }
+
+    if (context.mounted) {
+      context.push('/my-sos');
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(mockStateProvider);
     final notifier = ref.read(mockStateProvider.notifier);
+    final profileAsync = ref.watch(currentUserProfileProvider);
 
     return Scaffold(
       backgroundColor: AppColors.surfaceContainerLowest,
@@ -40,12 +65,34 @@ class HomeScreen extends ConsumerWidget {
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            'Good evening, ${state.currentUser.name.split(' ').first}',
-                            style: const TextStyle(
-                              fontSize: 26,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.onSurface,
+                          profileAsync.when(
+                            data: (userProfile) {
+                              final firstName = userProfile?.firstName.isNotEmpty == true
+                                  ? userProfile!.firstName
+                                  : (userProfile?.name.split(' ').first ?? 'User');
+                              return Text(
+                                'Good evening, $firstName',
+                                style: const TextStyle(
+                                  fontSize: 26,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.onSurface,
+                                ),
+                              );
+                            },
+                            loading: () => const SizedBox(
+                              width: 160,
+                              height: 28,
+                              child: LinearProgressIndicator(
+                                color: AppColors.primaryContainer,
+                              ),
+                            ),
+                            error: (_, __) => const Text(
+                              'Good evening',
+                              style: TextStyle(
+                                fontSize: 26,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.onSurface,
+                              ),
                             ),
                           ),
                         ],
@@ -82,13 +129,10 @@ class HomeScreen extends ConsumerWidget {
 
                   const SizedBox(height: 28),
 
-                  // Central SOS Hold Button
+                  // Central SOS Hold Button (Creates Real Firestore Emergency)
                   Center(
                     child: SOSButton(
-                      onTrigger: () {
-                        notifier.triggerMySos();
-                        context.push('/my-sos');
-                      },
+                      onTrigger: () => _onSosTriggered(context, ref),
                     ),
                   ),
 

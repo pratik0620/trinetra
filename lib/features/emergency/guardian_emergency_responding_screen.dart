@@ -2,16 +2,38 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/theme/app_colors.dart';
+import '../../providers/app_providers.dart';
 import '../../providers/mock_state_provider.dart';
 import '../../shared/widgets/map_placeholder_widget.dart';
 
 class GuardianEmergencyRespondingScreen extends ConsumerWidget {
-  const GuardianEmergencyRespondingScreen({super.key});
+  final String? emergencyId;
+
+  const GuardianEmergencyRespondingScreen({
+    super.key,
+    this.emergencyId,
+  });
+
+  void _onResolve(BuildContext context, WidgetRef ref) async {
+    final notifier = ref.read(mockStateProvider.notifier);
+    notifier.resolveGuardianEmergency();
+
+    final emergencyRepo = ref.read(emergencyRepositoryProvider);
+    final eId = emergencyId ?? 'emergency_active_demo';
+
+    try {
+      await emergencyRepo.resolveEmergency(eId);
+    } catch (e) {
+      debugPrint('Firestore resolve note: $e');
+    }
+
+    if (context.mounted) {
+      context.push('/guardian-resolved?emergencyId=$eId');
+    }
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final notifier = ref.read(mockStateProvider.notifier);
-
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
@@ -198,10 +220,7 @@ class GuardianEmergencyRespondingScreen extends ConsumerWidget {
 
                   // Resolve Action
                   TextButton.icon(
-                    onPressed: () {
-                      notifier.resolveGuardianEmergency();
-                      context.push('/guardian-resolved');
-                    },
+                    onPressed: () => _onResolve(context, ref),
                     icon: const Icon(Icons.check_circle_outline_rounded,
                         color: AppColors.tertiary, size: 18),
                     label: const Text(

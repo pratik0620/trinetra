@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/app_colors.dart';
+import '../../providers/app_providers.dart';
 
-class AddConnectionBottomSheet extends StatefulWidget {
+class AddConnectionBottomSheet extends ConsumerStatefulWidget {
   final Function(String name, String relationship) onAdd;
 
   const AddConnectionBottomSheet({
@@ -10,16 +12,18 @@ class AddConnectionBottomSheet extends StatefulWidget {
   });
 
   @override
-  State<AddConnectionBottomSheet> createState() =>
+  ConsumerState<AddConnectionBottomSheet> createState() =>
       _AddConnectionBottomSheetState();
 }
 
-class _AddConnectionBottomSheetState extends State<AddConnectionBottomSheet> {
+class _AddConnectionBottomSheetState
+    extends ConsumerState<AddConnectionBottomSheet> {
   final _phoneController = TextEditingController();
   final _nameController = TextEditingController(text: 'Riya Patel');
   String _selectedRelationship = 'Friend';
   bool _isEmergencyContact = true;
   bool _canReceiveSos = true;
+  bool _isSubmitting = false;
 
   @override
   void dispose() {
@@ -28,21 +32,49 @@ class _AddConnectionBottomSheetState extends State<AddConnectionBottomSheet> {
     super.dispose();
   }
 
-  void _submit() {
+  void _submit() async {
     final name = _nameController.text.trim();
+    final phone = _phoneController.text.trim();
     if (name.isEmpty) return;
 
+    setState(() => _isSubmitting = true);
+
+    final authUser = ref.read(authRepositoryProvider).currentUser;
+    final userRepo = ref.read(userRepositoryProvider);
+    final connRepo = ref.read(connectionRepositoryProvider);
+
+    if (authUser != null) {
+      try {
+        final foundUser = phone.isNotEmpty
+            ? await userRepo.searchUserByPhone(phone)
+            : null;
+        final receiverUid = foundUser?.uid ?? 'user_receiver_placeholder';
+
+        await connRepo.sendConnectionRequest(
+          requesterId: authUser.uid,
+          receiverId: receiverUid,
+          relationship: _selectedRelationship,
+          canReceiveSOS: _canReceiveSos,
+          canShareLocation: true,
+        );
+      } catch (e) {
+        debugPrint('Firestore connection creation note: $e');
+      }
+    }
+
     widget.onAdd(name, _selectedRelationship);
-    Navigator.of(context).pop();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        backgroundColor: AppColors.tertiaryContainer,
-        content: Text(
-          'Connection request sent to $name!',
-          style: const TextStyle(color: AppColors.onTertiaryContainer),
+    if (mounted) {
+      Navigator.of(context).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: AppColors.tertiaryContainer,
+          content: Text(
+            'Connection request sent to $name!',
+            style: const TextStyle(color: AppColors.onTertiaryContainer),
+          ),
         ),
-      ),
-    );
+      );
+    }
   }
 
   @override
@@ -94,6 +126,7 @@ class _AddConnectionBottomSheetState extends State<AddConnectionBottomSheet> {
               ],
             ),
             const SizedBox(height: 16),
+
             // Method choices
             Row(
               children: [
@@ -115,7 +148,8 @@ class _AddConnectionBottomSheetState extends State<AddConnectionBottomSheet> {
                         Text(
                           'Search by\nphone number',
                           textAlign: TextAlign.center,
-                          style: TextStyle(fontSize: 12, color: AppColors.onSurface),
+                          style:
+                              TextStyle(fontSize: 12, color: AppColors.onSurface),
                         ),
                       ],
                     ),
@@ -141,7 +175,8 @@ class _AddConnectionBottomSheetState extends State<AddConnectionBottomSheet> {
                         Text(
                           'Scan QR\ncode',
                           textAlign: TextAlign.center,
-                          style: TextStyle(fontSize: 12, color: AppColors.onSurface),
+                          style:
+                              TextStyle(fontSize: 12, color: AppColors.onSurface),
                         ),
                       ],
                     ),
@@ -150,6 +185,7 @@ class _AddConnectionBottomSheetState extends State<AddConnectionBottomSheet> {
               ],
             ),
             const SizedBox(height: 16),
+
             const Text(
               'Name',
               style: TextStyle(
@@ -175,7 +211,36 @@ class _AddConnectionBottomSheetState extends State<AddConnectionBottomSheet> {
                 ),
               ),
             ),
+            const SizedBox(height: 12),
+
+            const Text(
+              'Phone Number (Optional)',
+              style: TextStyle(
+                fontSize: 12,
+                color: AppColors.onSurfaceVariant,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 4),
+            TextField(
+              controller: _phoneController,
+              keyboardType: TextInputType.phone,
+              style: const TextStyle(color: AppColors.onSurface),
+              decoration: InputDecoration(
+                hintText: '+91 98765 43210',
+                hintStyle: const TextStyle(color: AppColors.outline),
+                filled: true,
+                fillColor: AppColors.surfaceVariant,
+                prefixIcon: const Icon(Icons.phone_outlined,
+                    color: AppColors.onSurfaceVariant),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
             const SizedBox(height: 16),
+
             const Text(
               'Relationship',
               style: TextStyle(
@@ -199,7 +264,8 @@ class _AddConnectionBottomSheetState extends State<AddConnectionBottomSheet> {
                       color: isSelected
                           ? AppColors.onPrimaryContainer
                           : AppColors.onSurfaceVariant,
-                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                      fontWeight:
+                          isSelected ? FontWeight.bold : FontWeight.normal,
                     ),
                     onSelected: (selected) {
                       if (selected) {
@@ -219,7 +285,8 @@ class _AddConnectionBottomSheetState extends State<AddConnectionBottomSheet> {
                   style: TextStyle(color: AppColors.onSurface, fontSize: 14)),
               subtitle: const Text(
                 'Notify them immediately during an SOS',
-                style: TextStyle(color: AppColors.onSurfaceVariant, fontSize: 12),
+                style:
+                    TextStyle(color: AppColors.onSurfaceVariant, fontSize: 12),
               ),
               onChanged: (val) =>
                   setState(() => _isEmergencyContact = val ?? false),
@@ -233,10 +300,10 @@ class _AddConnectionBottomSheetState extends State<AddConnectionBottomSheet> {
                   style: TextStyle(color: AppColors.onSurface, fontSize: 14)),
               subtitle: const Text(
                 'Allow them to add you as a guardian',
-                style: TextStyle(color: AppColors.onSurfaceVariant, fontSize: 12),
+                style:
+                    TextStyle(color: AppColors.onSurfaceVariant, fontSize: 12),
               ),
-              onChanged: (val) =>
-                  setState(() => _canReceiveSos = val ?? false),
+              onChanged: (val) => setState(() => _canReceiveSos = val ?? false),
               contentPadding: EdgeInsets.zero,
             ),
             const SizedBox(height: 20),
@@ -244,7 +311,7 @@ class _AddConnectionBottomSheetState extends State<AddConnectionBottomSheet> {
               width: double.infinity,
               height: 54,
               child: ElevatedButton.icon(
-                onPressed: _submit,
+                onPressed: _isSubmitting ? null : _submit,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   foregroundColor: AppColors.onPrimary,
@@ -253,9 +320,10 @@ class _AddConnectionBottomSheetState extends State<AddConnectionBottomSheet> {
                   ),
                 ),
                 icon: const Icon(Icons.send_rounded),
-                label: const Text(
-                  'Send Request',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                label: Text(
+                  _isSubmitting ? 'Sending...' : 'Send Request',
+                  style: const TextStyle(
+                      fontSize: 16, fontWeight: FontWeight.bold),
                 ),
               ),
             ),

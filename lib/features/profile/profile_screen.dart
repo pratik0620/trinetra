@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/theme/app_colors.dart';
+import '../../providers/app_providers.dart';
 import '../../providers/mock_state_provider.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
@@ -18,8 +19,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(mockStateProvider);
-    final user = state.currentUser;
     final shoe = state.shoeStatus;
+    final profileAsync = ref.watch(currentUserProfileProvider);
+    final firebaseUser = ref.watch(authRepositoryProvider).currentUser;
+
+    final name = profileAsync.value?.name ?? state.currentUser.name;
+    final phone = profileAsync.value?.phone.isNotEmpty == true
+        ? profileAsync.value!.phone
+        : (firebaseUser?.phoneNumber ?? state.currentUser.phone);
+    final avatarUrl = profileAsync.value?.photoUrl ?? state.currentUser.avatarUrl;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -44,7 +52,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                           ),
                           child: CircleAvatar(
                             radius: 50,
-                            backgroundImage: NetworkImage(user.avatarUrl),
+                            backgroundImage: NetworkImage(avatarUrl),
                           ),
                         ),
                         Positioned(
@@ -65,17 +73,33 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       ],
                     ),
                     const SizedBox(height: 14),
-                    Text(
-                      user.name,
-                      style: const TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.onSurface,
+                    profileAsync.when(
+                      data: (userModel) => Text(
+                        userModel?.name ?? name,
+                        style: const TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.onSurface,
+                        ),
+                      ),
+                      loading: () => const SizedBox(
+                        width: 120,
+                        height: 24,
+                        child: LinearProgressIndicator(
+                            color: AppColors.primaryContainer),
+                      ),
+                      error: (_, __) => Text(
+                        name,
+                        style: const TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.onSurface,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      user.phone,
+                      phone,
                       style: const TextStyle(
                         fontSize: 14,
                         color: AppColors.onSurfaceVariant,
@@ -288,7 +312,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
               // Log Out Button
               OutlinedButton(
-                onPressed: () => context.go('/login'),
+                onPressed: () async {
+                  await ref.read(authServiceProvider).clearLocalSession();
+                  await ref.read(authRepositoryProvider).signOut();
+                  ref.read(activeUserUidProvider.notifier).state = null;
+                  if (context.mounted) {
+                    context.go('/login');
+                  }
+                },
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppColors.emergency,
                   side: const BorderSide(color: AppColors.errorContainer),

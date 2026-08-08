@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/theme/app_colors.dart';
+import '../../providers/app_providers.dart';
 import '../../providers/mock_state_provider.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {
@@ -34,15 +35,40 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
     _controller.forward();
 
-    Timer(const Duration(milliseconds: 2400), () {
-      if (!mounted) return;
-      final state = ref.read(mockStateProvider);
-      if (state.hasCompletedOnboarding) {
-        context.go('/home');
-      } else {
-        context.go('/onboarding');
+    _checkSessionAndNavigate();
+  }
+
+  void _checkSessionAndNavigate() async {
+    await Future.delayed(const Duration(milliseconds: 2000));
+    if (!mounted) return;
+
+    try {
+      final authService = ref.read(authServiceProvider);
+      final userRepo = ref.read(userRepositoryProvider);
+
+      final savedPhone = await authService.getLocalSessionPhone();
+      final savedUid = await authService.getLocalSessionUid();
+
+      if (savedPhone != null && savedPhone.isNotEmpty && savedUid != null) {
+        final userProfile = await userRepo.getUserProfile(savedUid);
+        if (userProfile != null) {
+          ref.read(activeUserUidProvider.notifier).state = savedUid;
+          ref.read(mockStateProvider.notifier).login();
+          if (mounted) {
+            context.go('/home');
+            return;
+          }
+        }
       }
-    });
+    } catch (_) {}
+
+    if (!mounted) return;
+    final state = ref.read(mockStateProvider);
+    if (state.hasCompletedOnboarding) {
+      context.go('/login');
+    } else {
+      context.go('/onboarding');
+    }
   }
 
   @override

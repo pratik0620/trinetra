@@ -63,8 +63,8 @@ class MockStateNotifier extends StateNotifier<RAKSHAAppState> {
       : super(
           RAKSHAAppState(
             currentUser: const UserProfile(
-              id: 'user_priya',
-              name: 'Priya Sharma',
+              id: 'user_current',
+              name: 'RAKSHA User',
               phone: '+91 98765 43210',
               avatarUrl:
                   'https://lh3.googleusercontent.com/aida-public/AB6AXuBSUEL7rzgOUfdodwwHNcQbn_MHokVlIecnYhN8TPN4KhvtW8M3TYZw1KPrm3UUYMfDPD-CyC6H4pnG_wuCRlbFOo0sHv6vRLEmIYBJTMFcxegdK9_q98JjiFSGeh6yTbJScbg111WeZv3X0Od_rjlCtLqLJWkOYc5ePgUjEra3ocWEwQrUEaX1TgYs2NEDlH1A4pxqtvMe0BMaKHD-3BH4qBOTfLnuZERSJxJPt7Kf2ghB4cM1e83C3w',

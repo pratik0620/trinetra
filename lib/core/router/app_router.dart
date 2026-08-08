@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../features/auth/login_screen.dart';
+import '../../features/auth/name_setup_screen.dart';
 import '../../features/emergency/guardian_emergency_active_screen.dart';
 import '../../features/emergency/guardian_emergency_responding_screen.dart';
 import '../../features/emergency/guardian_emergency_resolved_screen.dart';
@@ -39,6 +40,12 @@ class AppRouter {
       GoRoute(
         path: '/login',
         builder: (context, state) => const LoginScreen(),
+      ),
+      GoRoute(
+        path: '/name-setup',
+        builder: (context, state) => NameSetupScreen(
+          phone: state.uri.queryParameters['phone'],
+        ),
       ),
 
       // Shell Route for Main Bottom Navigation Tabs
@@ -106,13 +113,16 @@ class AppRouter {
       GoRoute(
         path: '/guardian-sos-active',
         parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) => const GuardianEmergencyActiveScreen(),
+        builder: (context, state) => GuardianEmergencyActiveScreen(
+          emergencyId: state.uri.queryParameters['emergencyId'],
+        ),
       ),
       GoRoute(
         path: '/guardian-responding',
         parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) =>
-            const GuardianEmergencyRespondingScreen(),
+        builder: (context, state) => GuardianEmergencyRespondingScreen(
+          emergencyId: state.uri.queryParameters['emergencyId'],
+        ),
       ),
       GoRoute(
         path: '/guardian-resolved',

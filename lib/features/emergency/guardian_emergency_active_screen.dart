@@ -3,11 +3,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/theme/app_colors.dart';
+import '../../providers/app_providers.dart';
 import '../../providers/mock_state_provider.dart';
 import '../../shared/widgets/map_placeholder_widget.dart';
 
 class GuardianEmergencyActiveScreen extends ConsumerStatefulWidget {
-  const GuardianEmergencyActiveScreen({super.key});
+  final String? emergencyId;
+
+  const GuardianEmergencyActiveScreen({
+    super.key,
+    this.emergencyId,
+  });
 
   @override
   ConsumerState<GuardianEmergencyActiveScreen> createState() =>
@@ -35,10 +41,32 @@ class _GuardianEmergencyActiveScreenState
     super.dispose();
   }
 
+  void _onRespond() async {
+    final notifier = ref.read(mockStateProvider.notifier);
+    notifier.respondToGuardianEmergency();
+
+    final authUser = ref.read(authRepositoryProvider).currentUser;
+    final emergencyRepo = ref.read(emergencyRepositoryProvider);
+
+    final eId = widget.emergencyId ?? 'emergency_active_demo';
+    final guardianUid = authUser?.uid ?? 'guardian_ananya';
+
+    try {
+      await emergencyRepo.respondToEmergency(
+        emergencyId: eId,
+        guardianUid: guardianUid,
+      );
+    } catch (e) {
+      debugPrint('Firestore respond note: $e');
+    }
+
+    if (mounted) {
+      context.push('/guardian-responding?emergencyId=$eId');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final notifier = ref.read(mockStateProvider.notifier);
-
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
@@ -142,15 +170,12 @@ class _GuardianEmergencyActiveScreenState
                   ),
                   const SizedBox(height: 16),
 
-                  // Primary Action
+                  // Primary Action (Real Firestore Update)
                   SizedBox(
                     width: double.infinity,
                     height: 60,
                     child: ElevatedButton(
-                      onPressed: () {
-                        notifier.respondToGuardianEmergency();
-                        context.push('/guardian-responding');
-                      },
+                      onPressed: _onRespond,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.primaryContainer,
                         foregroundColor: AppColors.onPrimaryContainer,

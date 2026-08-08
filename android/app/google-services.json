@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "37224293536",
+    "firebase_url": "https://trinetra-c7c20-default-rtdb.asia-southeast1.firebasedatabase.app",
+    "project_id": "trinetra-c7c20",
+    "storage_bucket": "trinetra-c7c20.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:37224293536:android:7372dd9159c4b2720815c5",
+        "android_client_info": {
+          "package_name": "com.example.women_safety_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDMvQ6XzcgapgTD_C3xAkpDygNHyhcxhjg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
