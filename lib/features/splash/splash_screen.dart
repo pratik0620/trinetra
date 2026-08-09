@@ -40,44 +40,67 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   }
 
   void _checkSessionAndNavigate() async {
-    await Future.delayed(const Duration(milliseconds: 2000));
+    await Future.delayed(const Duration(milliseconds: 1200));
     if (!mounted) return;
+
+    bool navigated = false;
 
     try {
       final authService = ref.read(authServiceProvider);
       final userRepo = ref.read(userRepositoryProvider);
 
-      final savedPhone = await authService.getLocalSessionPhone();
-      final savedUid = await authService.getLocalSessionUid();
+      final savedPhone = await authService
+          .getLocalSessionPhone()
+          .timeout(const Duration(seconds: 2), onTimeout: () => null);
+      final savedUid = await authService
+          .getLocalSessionUid()
+          .timeout(const Duration(seconds: 2), onTimeout: () => null);
 
       if (savedPhone != null && savedPhone.isNotEmpty && savedUid != null) {
-        final userProfile = await userRepo.getUserProfile(savedUid);
+        final userProfile = await userRepo
+            .getUserProfile(savedUid)
+            .timeout(const Duration(seconds: 2), onTimeout: () => null);
+
         if (userProfile != null) {
           ref.read(activeUserUidProvider.notifier).state = savedUid;
           ref.read(mockStateProvider.notifier).login();
 
-          // Initialize FCM NotificationService
-          await ref.read(notificationServiceProvider).initialize(
-            savedUid,
-            onEmergencyTap: (emergencyId) {
-              AppRouter.router.go('/guardian-sos-active?emergencyId=$emergencyId');
-            },
+          // Initialize FCM NotificationService in background (non-blocking)
+          unawaited(
+            ref.read(notificationServiceProvider).initialize(
+              savedUid,
+              onEmergencyTap: (emergencyId) {
+                AppRouter.router.go('/guardian-sos-active?emergencyId=$emergencyId');
+              },
+            ).catchError((e) {
+              debugPrint('FCM init note: $e');
+            }),
           );
 
           if (mounted) {
+            navigated = true;
             context.go('/home');
             return;
           }
         }
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('Session check note: $e');
+    }
 
-    if (!mounted) return;
-    final state = ref.read(mockStateProvider);
-    if (state.hasCompletedOnboarding) {
-      context.go('/login');
-    } else {
-      context.go('/onboarding');
+    if (!mounted || navigated) return;
+    try {
+      final state = ref.read(mockStateProvider);
+      if (state.hasCompletedOnboarding) {
+        context.go('/login');
+      } else {
+        context.go('/onboarding');
+      }
+    } catch (e) {
+      debugPrint('Navigation fallback note: $e');
+      if (mounted) {
+        context.go('/onboarding');
+      }
     }
   }
 

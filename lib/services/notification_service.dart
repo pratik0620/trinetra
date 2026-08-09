@@ -32,65 +32,81 @@ class NotificationService {
     String currentUid, {
     required Function(String emergencyId) onEmergencyTap,
   }) async {
-    // 1. Initialize Local Notifications Plugin for Android foreground alerts
-    const androidInitSettings =
-        AndroidInitializationSettings('@mipmap/ic_launcher');
-    const initSettings = InitializationSettings(android: androidInitSettings);
+    try {
+      // 1. Initialize Local Notifications Plugin for Android foreground alerts
+      const androidInitSettings =
+          AndroidInitializationSettings('@mipmap/ic_launcher');
+      const initSettings = InitializationSettings(android: androidInitSettings);
 
-    await _localNotifications.initialize(
-      initSettings,
-      onDidReceiveNotificationResponse: (response) {
-        final payload = response.payload;
-        if (payload != null && payload.isNotEmpty) {
-          onEmergencyTap(payload);
-        }
-      },
-    );
+      await _localNotifications
+          .initialize(
+            initSettings,
+            onDidReceiveNotificationResponse: (response) {
+              final payload = response.payload;
+              if (payload != null && payload.isNotEmpty) {
+                onEmergencyTap(payload);
+              }
+            },
+          )
+          .timeout(const Duration(seconds: 3), onTimeout: () => false);
 
-    // Create high-importance Android channel
-    await _localNotifications
-        .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>()
-        ?.createNotificationChannel(_emergencyChannel);
+      // Create high-importance Android channel
+      await _localNotifications
+          .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>()
+          ?.createNotificationChannel(_emergencyChannel)
+          .timeout(const Duration(seconds: 2), onTimeout: () {});
+    } catch (e) {
+      debugPrint('Local notifications init note: $e');
+    }
 
     // 2. Request Notification Permission
-    final settings = await _messaging.requestPermission(
-      alert: true,
-      badge: true,
-      sound: true,
-    );
+    try {
+      final settings = await _messaging
+          .requestPermission(
+            alert: true,
+            badge: true,
+            sound: true,
+          )
+          .timeout(const Duration(seconds: 4));
 
-    if (settings.authorizationStatus == AuthorizationStatus.authorized ||
-        settings.authorizationStatus == AuthorizationStatus.provisional) {
-      // 3. Get FCM Registration Token
-      try {
-        final token = await _messaging.getToken();
-        if (token != null && token.isNotEmpty) {
-          final shortened = token.length > 12
-              ? '${token.substring(0, 6)}...${token.substring(token.length - 6)}'
-              : token;
-          debugPrint('====================================');
-          debugPrint('FCM TOKEN: $shortened');
-          debugPrint('FirebaseAuth UID: $currentUid');
-          debugPrint('====================================');
-          await _userRepository.saveFcmToken(currentUid, token);
-          debugPrint('FCM TOKEN STORED SUCCESSFULLY');
+      if (settings.authorizationStatus == AuthorizationStatus.authorized ||
+          settings.authorizationStatus == AuthorizationStatus.provisional) {
+        // 3. Get FCM Registration Token
+        try {
+          final token = await _messaging
+              .getToken()
+              .timeout(const Duration(seconds: 5), onTimeout: () => null);
+
+          if (token != null && token.isNotEmpty) {
+            final shortened = token.length > 12
+                ? '${token.substring(0, 6)}...${token.substring(token.length - 6)}'
+                : token;
+            debugPrint('====================================');
+            debugPrint('FCM TOKEN: $shortened');
+            debugPrint('FirebaseAuth UID: $currentUid');
+            debugPrint('====================================');
+            await _userRepository.saveFcmToken(currentUid, token);
+            debugPrint('FCM TOKEN STORED SUCCESSFULLY');
+          }
+        } catch (e) {
+          debugPrint('FCM getToken note: $e');
         }
-      } catch (e) {
-        debugPrint('FCM getToken note: $e');
+
+        // 4. Token Refresh Listener
+        _messaging.onTokenRefresh.listen((newToken) async {
+          if (newToken.isNotEmpty) {
+            final shortened = newToken.length > 12
+                ? '${newToken.substring(0, 6)}...${newToken.substring(newToken.length - 6)}'
+                : newToken;
+            debugPrint('FCM TOKEN REFRESHED: $shortened');
+            await _userRepository.saveFcmToken(currentUid, newToken);
+            debugPrint('FCM TOKEN STORED SUCCESSFULLY');
+          }
+        });
       }
-
-      // 4. Token Refresh Listener
-      _messaging.onTokenRefresh.listen((newToken) async {
-        if (newToken.isNotEmpty) {
-          final shortened = newToken.length > 12
-              ? '${newToken.substring(0, 6)}...${newToken.substring(newToken.length - 6)}'
-              : newToken;
-          debugPrint('FCM TOKEN REFRESHED: $shortened');
-          await _userRepository.saveFcmToken(currentUid, newToken);
-          debugPrint('FCM TOKEN STORED SUCCESSFULLY');
-        }
-      });
+    } catch (e) {
+      debugPrint('FCM permission / token setup note: $e');
     }
 
     // 5. FOREGROUND MESSAGES — Show high-priority local alert
@@ -139,21 +155,28 @@ class NotificationService {
     });
 
     // 7. TERMINATED STATE — Handle notification tap when app was terminated
-    final initialMessage = await _messaging.getInitialMessage();
-    if (initialMessage != null) {
-      final data = initialMessage.data;
-      final type = data['type'];
-      final emergencyId = data['emergencyId'];
+    try {
+      final initialMessage = await _messaging
+          .getInitialMessage()
+          .timeout(const Duration(seconds: 3), onTimeout: () => null);
 
-      debugPrint('====================================');
-      debugPrint('FCM MESSAGE RECEIVED (Terminated Initial Message)');
-      debugPrint('type = $type');
-      debugPrint('emergencyId = $emergencyId');
-      debugPrint('====================================');
+      if (initialMessage != null) {
+        final data = initialMessage.data;
+        final type = data['type'];
+        final emergencyId = data['emergencyId'];
 
-      if (type == 'emergency' && emergencyId != null) {
-        onEmergencyTap(emergencyId.toString());
+        debugPrint('====================================');
+        debugPrint('FCM MESSAGE RECEIVED (Terminated Initial Message)');
+        debugPrint('type = $type');
+        debugPrint('emergencyId = $emergencyId');
+        debugPrint('====================================');
+
+        if (type == 'emergency' && emergencyId != null) {
+          onEmergencyTap(emergencyId.toString());
+        }
       }
+    } catch (e) {
+      debugPrint('FCM getInitialMessage note: $e');
     }
   }
 

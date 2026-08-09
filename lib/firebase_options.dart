@@ -51,12 +51,13 @@ class DefaultFirebaseOptions {
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyDMvQ6XzcgapgTD_C3xAkpDygNHyhcxhjg',
-    appId: '1:37224293536:android:7372dd9159c4b2720815c5',
-    messagingSenderId: '37224293536',
+    apiKey: 'AIzaSyBSz56WGV78ElOtZ_36Qw3XUQmJsoKjDik',
+    appId: '1:191686723958:android:3d07d283fff15e2d481257',
+    messagingSenderId: '191686723958',
     projectId: 'trinetra-24318',
     databaseURL: 'https://trinetra-24318-default-rtdb.asia-southeast1.firebasedatabase.app',
     storageBucket: 'trinetra-24318.firebasestorage.app',
+  );
 
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyDNNO7TFSaqeduBzeSD2vbdX0R-DzcH258',
@@ -67,8 +68,13 @@ class DefaultFirebaseOptions {
     iosBundleId: 'com.example.womenSafetyApp',
   );
 
-  );
-
+  static const FirebaseOptions macos = FirebaseOptions(
+    apiKey: 'AIzaSyDNNO7TFSaqeduBzeSD2vbdX0R-DzcH258',
+    appId: '1:191686723958:ios:cda108226c80685b481257',
+    messagingSenderId: '191686723958',
+    projectId: 'trinetra-24318',
+    storageBucket: 'trinetra-24318.firebasestorage.app',
+    iosBundleId: 'com.example.womenSafetyApp',
   );
 
   static const FirebaseOptions windows = FirebaseOptions(
@@ -80,5 +86,4 @@ class DefaultFirebaseOptions {
     storageBucket: 'trinetra-24318.firebasestorage.app',
     measurementId: 'G-77WNYVCGCV',
   );
-
 }
