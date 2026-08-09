@@ -5,15 +5,22 @@ import '../../core/theme/app_colors.dart';
 import '../../models/app_models.dart';
 import '../../providers/app_providers.dart';
 import '../../providers/mock_state_provider.dart';
+import '../../providers/sensor_selectors.dart';
+import '../../providers/ble_state_provider.dart';
 import '../../shared/widgets/safety_status_card.dart';
 import '../../shared/widgets/shoe_status_card.dart';
 import '../../shared/widgets/sos_button.dart';
 import '../emergency/guardian_notification_banner.dart';
 
-class HomeScreen extends ConsumerWidget {
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
-  void _onSosTriggered(BuildContext context, WidgetRef ref) async {
+  @override
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends ConsumerState<HomeScreen> {
+  void _onSosTriggered(BuildContext context) async {
     final notifier = ref.read(mockStateProvider.notifier);
     notifier.triggerMySos();
 
@@ -53,13 +60,13 @@ class HomeScreen extends ConsumerWidget {
       debugPrint('Firestore emergency creation note: $e');
     }
 
-    if (context.mounted) {
+    if (mounted) {
       context.push('/my-sos');
     }
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final state = ref.watch(mockStateProvider);
     final notifier = ref.read(mockStateProvider.notifier);
     final profileAsync = ref.watch(currentUserProfileProvider);
@@ -140,20 +147,60 @@ class HomeScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 20),
 
-                  // Safety Status Card
-                  SafetyStatusCard(status: state.safetyStatus),
+                   // Safety Status Card
+                  Consumer(
+                    builder: (context, ref, child) {
+                      final status = ref.watch(effectiveSafetyStatusProvider);
+                      return SafetyStatusCard(status: status);
+                    },
+                  ),
 
                   const SizedBox(height: 20),
 
+                  // Smart Shoe Status Card Header
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Smart Shoe Status',
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.onSurfaceVariant,
+                            ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+
                   // Smart Shoe Status Card
-                  ShoeStatusCard(shoeStatus: state.shoeStatus),
+                  Consumer(
+                    builder: (context, ref, child) {
+                      final isConnected = ref.watch(effectiveShoeStatusProvider.select((s) => s.isConnected));
+                      final batteryPercent = ref.watch(effectiveShoeStatusProvider.select((s) => s.batteryPercent));
+                      final isBleConnected = ref.watch(effectiveShoeStatusProvider.select((s) => s.isBleConnected));
+                      final isGpsAvailable = ref.watch(effectiveShoeStatusProvider.select((s) => s.isGpsAvailable));
+                      final is4gConnected = ref.watch(effectiveShoeStatusProvider.select((s) => s.is4gConnected));
+                      final lastSyncedText = ref.watch(effectiveShoeStatusProvider.select((s) => s.lastSyncedText));
+
+                      final status = ShoeStatusModel(
+                        isConnected: isConnected,
+                        batteryPercent: batteryPercent,
+                        isBleConnected: isBleConnected,
+                        isGpsAvailable: isGpsAvailable,
+                        is4gConnected: is4gConnected,
+                        lastSyncedText: lastSyncedText,
+                      );
+
+                      return ShoeStatusCard(shoeStatus: status);
+                    },
+                  ),
 
                   const SizedBox(height: 28),
 
                   // Central SOS Hold Button (Creates Real Firestore Emergency)
                   Center(
                     child: SOSButton(
-                      onTrigger: () => _onSosTriggered(context, ref),
+                      onTrigger: () => _onSosTriggered(context),
                     ),
                   ),
 
