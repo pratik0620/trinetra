@@ -39,7 +39,6 @@ dependencies:
   firebase_auth: ^6.1.0
   cloud_firestore: ^6.1.0
   firebase_messaging: ^16.1.0
-  cloud_functions: ^6.1.0
 
   # Local persistence
   shared_preferences: ^2.5.2

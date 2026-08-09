@@ -56,7 +56,7 @@ export const onEmergencyCreated = functions.onDocumentCreated(
 
     const emergencyData = snapshot.data();
     const emergencyId = event.params.emergencyId;
-    const userId = emergencyData.userId;
+    const userId = emergencyData.userId as string | undefined;
 
     console.log("====================================");
     console.log("FUNCTION TRIGGERED");
@@ -69,7 +69,9 @@ export const onEmergencyCreated = functions.onDocumentCreated(
       return;
     }
 
-    console.log(`Emergency user: ${userId}`);
+    const latitude = emergencyData.latitude;
+    const longitude = emergencyData.longitude;
+    const triggerType = emergencyData.triggerType || "manual_sos";
 
     // 1. Fetch victim profile details
     const userDoc = await admin.firestore().collection("users").doc(userId).get();
@@ -80,11 +82,14 @@ export const onEmergencyCreated = functions.onDocumentCreated(
     const fullName = (fName + " " + lName).trim();
     const victimName = fullName.length > 0 ? fullName : (userData.displayName || userData.name || "A RAKSHA Contact");
 
-    // 2. Read emergency_contacts array (Primary recipient source)
-    const emergencyContacts: string[] = userData.emergency_contacts || [];
-    const guardianUids = new Set<string>(emergencyContacts);
+    // 2. Collect guardian UIDs from emergency_contacts array and connections subcollection
+    const guardianUids = new Set<string>();
 
-    // Also check connections subcollection for existing accepted connections
+    const emergencyContacts: string[] = userData.emergency_contacts || [];
+    emergencyContacts.forEach((uid) => {
+      if (uid) guardianUids.add(uid);
+    });
+
     const userConnsSnap = await admin
       .firestore()
       .collection("users")
@@ -94,43 +99,23 @@ export const onEmergencyCreated = functions.onDocumentCreated(
 
     userConnsSnap.docs.forEach((doc) => {
       const connUid = doc.id || doc.data().userId;
-      if (connUid) {
-        guardianUids.add(connUid);
-      }
+      if (connUid) guardianUids.add(connUid);
     });
 
-    // DO NOT NOTIFY THE SOS USER HERSELF
     guardianUids.delete(userId);
 
     const guardianList = Array.from(guardianUids);
-    console.log(`Emergency contacts: [${guardianList.join(", ")}]`);
+    console.log(`Guardian UIDs: [${guardianList.join(", ")}]`);
 
     if (guardianList.length === 0) {
-      console.log(`No emergency contacts found for user ${userId}`);
+      console.log(`No guardians found for user ${userId}`);
       return;
     }
 
-    // 3. Fetch FCM tokens for each emergency contact
+    // 3. Fetch FCM tokens from users/{uid}/fcm_tokens/{token} (single source of truth)
     const tokens = new Set<string>();
 
     for (const guardianUid of guardianList) {
-      const contactTokens: string[] = [];
-
-      // Check user document fcmTokens array
-      const gDoc = await admin.firestore().collection("users").doc(guardianUid).get();
-      if (gDoc.exists) {
-        const gData = gDoc.data() || {};
-        if (Array.isArray(gData.fcmTokens)) {
-          gData.fcmTokens.forEach((t: string) => {
-            if (t) {
-              tokens.add(t);
-              contactTokens.push(t);
-            }
-          });
-        }
-      }
-
-      // Check fcm_tokens subcollection
       const subSnap = await admin
         .firestore()
         .collection("users")
@@ -139,53 +124,40 @@ export const onEmergencyCreated = functions.onDocumentCreated(
         .get();
 
       subSnap.docs.forEach((tDoc) => {
-        const tokenVal = tDoc.data().token;
-        if (tokenVal) {
-          tokens.add(tokenVal);
-          contactTokens.push(tokenVal);
-        }
+        const tokenVal = tDoc.data().token || tDoc.id;
+        if (tokenVal) tokens.add(tokenVal);
       });
 
-      // Check devices subcollection
-      const devSnap = await admin
-        .firestore()
-        .collection("users")
-        .doc(guardianUid)
-        .collection("devices")
-        .get();
-
-      devSnap.docs.forEach((dDoc) => {
-        const tokenVal = dDoc.data().fcmToken;
-        if (tokenVal) {
-          tokens.add(tokenVal);
-          contactTokens.push(tokenVal);
-        }
-      });
-
-      console.log(`Contact UID: ${guardianUid} | Device tokens found: ${contactTokens.length}`);
+      console.log(`Guardian ${guardianUid}: ${subSnap.size} token(s)`);
     }
 
     const tokenList = Array.from(tokens);
-    console.log(`Total unique FCM tokens found: ${tokenList.length}`);
+    console.log(`Total unique FCM tokens: ${tokenList.length}`);
 
     if (tokenList.length === 0) {
-      console.log(`No FCM tokens registered for emergency contacts of user ${userId}`);
+      console.log(`No FCM tokens registered for guardians of user ${userId}`);
       return;
     }
 
-    // 4. Send Multicast FCM notification
+    const dataPayload: Record<string, string> = {
+      type: "emergency",
+      emergencyId: emergencyId,
+      userId: userId,
+      triggeredByUserId: userId,
+      status: emergencyData.status || "active",
+      triggerType: String(triggerType),
+    };
+
+    if (latitude != null) dataPayload.latitude = String(latitude);
+    if (longitude != null) dataPayload.longitude = String(longitude);
+
     const message: admin.messaging.MulticastMessage = {
       tokens: tokenList,
       notification: {
         title: "🚨 RAKSHA EMERGENCY",
         body: `${victimName} has triggered an SOS`,
       },
-      data: {
-        type: "emergency",
-        emergencyId: emergencyId,
-        triggeredByUserId: userId,
-        status: "active",
-      },
+      data: dataPayload,
       android: {
         priority: "high",
         notification: {
@@ -195,11 +167,6 @@ export const onEmergencyCreated = functions.onDocumentCreated(
         },
       },
     };
-
-    for (const t of tokenList) {
-      const shortened = t.length > 12 ? `${t.substring(0, 6)}...${t.substring(t.length - 6)}` : t;
-      console.log(`Sending emergency notification to token: ${shortened}`);
-    }
 
     try {
       const response = await admin.messaging().sendEachForMulticast(message);

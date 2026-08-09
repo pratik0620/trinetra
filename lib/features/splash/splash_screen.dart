@@ -57,7 +57,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
           ref.read(mockStateProvider.notifier).login();
 
           // Initialize FCM NotificationService
-          ref.read(notificationServiceProvider).initialize(
+          await ref.read(notificationServiceProvider).initialize(
             savedUid,
             onEmergencyTap: (emergencyId) {
               AppRouter.router.go('/guardian-sos-active?emergencyId=$emergencyId');

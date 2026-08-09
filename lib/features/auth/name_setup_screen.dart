@@ -63,7 +63,7 @@ class _NameSetupScreenState extends ConsumerState<NameSetupScreen> {
       ref.read(activeUserUidProvider.notifier).state = userProfile.uid;
       ref.read(mockStateProvider.notifier).login();
 
-      ref.read(notificationServiceProvider).initialize(
+      await ref.read(notificationServiceProvider).initialize(
         userProfile.uid,
         onEmergencyTap: (emergencyId) {
           AppRouter.router.go('/guardian-sos-active?emergencyId=$emergencyId');

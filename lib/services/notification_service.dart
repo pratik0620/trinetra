@@ -184,34 +184,15 @@ class NotificationService {
     );
   }
 
-  Future<void> sendSosNotificationToContacts({
-    required String senderUid,
-    required String emergencyId,
-    required List<String> recipientUids,
-    required String senderName,
-  }) async {
-    debugPrint('[FCM] SOS notification started');
-    debugPrint('[FCM] senderUid = $senderUid');
-
-    for (final recipientUid in recipientUids) {
-      if (recipientUid == senderUid) continue;
-      debugPrint('[FCM] recipientUid = $recipientUid');
-
-      try {
-        final fcmToken = await _userRepository.getRecipientFcmToken(recipientUid);
-        if (fcmToken != null && fcmToken.isNotEmpty) {
-          final maskedToken = fcmToken.length > 12
-              ? '${fcmToken.substring(0, 6)}...${fcmToken.substring(fcmToken.length - 6)}'
-              : fcmToken;
-          debugPrint('[FCM] recipientToken = PRESENT ($maskedToken)');
-          debugPrint('[FCM] sending notification to $recipientUid...');
-          debugPrint('[FCM] send SUCCESS messageId = msg_${DateTime.now().millisecondsSinceEpoch}');
-        } else {
-          debugPrint('[FCM] recipientToken = MISSING for $recipientUid');
-        }
-      } catch (e) {
-        debugPrint('[FCM] send FAILED error = $e');
+  Future<void> clearFcmToken(String uid) async {
+    try {
+      final token = await _messaging.getToken();
+      if (token != null && token.isNotEmpty) {
+        await _userRepository.removeFcmToken(uid, token);
+        debugPrint('FCM TOKEN REMOVED ON LOGOUT');
       }
+    } catch (e) {
+      debugPrint('FCM token removal note: $e');
     }
   }
 }
