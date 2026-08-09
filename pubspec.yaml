@@ -10,6 +10,10 @@ dependencies:
   flutter:
     sdk: flutter
 
+  # BLE & Permissions
+  flutter_blue_plus: ^1.31.14
+  permission_handler: ^11.3.1
+
   # State Management
   flutter_riverpod: ^2.5.1
 

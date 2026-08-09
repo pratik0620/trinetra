@@ -10,6 +10,7 @@ import '../repositories/emergency_repository.dart';
 import '../repositories/user_repository.dart';
 import '../services/auth_service.dart';
 import '../services/notification_service.dart';
+import '../core/services/ble_service.dart';
 
 final authServiceProvider = Provider<AuthService>((ref) {
   return AuthService();
@@ -116,3 +117,10 @@ final userSafetyHistoryProvider =
   final emergencyRepo = ref.watch(emergencyRepositoryProvider);
   return emergencyRepo.streamSafetyHistory(targetUid);
 });
+
+final bleServiceProvider = Provider<BleService>((ref) {
+  final service = BleService();
+  ref.onDispose(service.dispose);
+  return service;
+});
+
