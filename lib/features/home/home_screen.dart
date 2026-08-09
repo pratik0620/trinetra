@@ -40,15 +40,8 @@ class HomeScreen extends ConsumerWidget {
       final userProfile = await userRepo.getUserProfile(userId);
       debugPrint('EMERGENCY CONTACTS VERIFICATION:');
       debugPrint('emergency_contacts = ${userProfile?.emergencyContacts}');
+      debugPrint('Cloud Function onEmergencyCreated will notify guardians');
       debugPrint('====================================');
-
-      final notifService = ref.read(notificationServiceProvider);
-      await notifService.sendSosNotificationToContacts(
-        senderUid: userId,
-        emergencyId: emergencyId,
-        recipientUids: userProfile?.emergencyContacts ?? [],
-        senderName: userProfile?.name ?? 'RAKSHA Contact',
-      );
     } catch (e) {
       debugPrint('Firestore emergency creation note: $e');
     }

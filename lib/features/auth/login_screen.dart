@@ -61,7 +61,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         ref.read(activeUserUidProvider.notifier).state = existingUser.uid;
         ref.read(mockStateProvider.notifier).login();
 
-        ref.read(notificationServiceProvider).initialize(
+        await ref.read(notificationServiceProvider).initialize(
           existingUser.uid,
           onEmergencyTap: (emergencyId) {
             AppRouter.router.go('/guardian-sos-active?emergencyId=$emergencyId');

@@ -41,7 +41,7 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
-    // Devices Collection
+    // Devices Collection (legacy top-level — unused by app)
     match /devices/{deviceId} {
       allow read, write: if true;
     }

@@ -313,6 +313,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               // Log Out Button
               OutlinedButton(
                 onPressed: () async {
+                  final uid = ref.read(activeUserUidProvider);
+                  if (uid != null) {
+                    await ref.read(notificationServiceProvider).clearFcmToken(uid);
+                  }
                   await ref.read(authServiceProvider).clearLocalSession();
                   await ref.read(authRepositoryProvider).signOut();
                   ref.read(activeUserUidProvider.notifier).state = null;
