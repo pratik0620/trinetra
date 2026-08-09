@@ -1,5 +1,7 @@
 {
   "projects": {
-    "default": "trinetra-c7c20"
-  }
+    "default": "trinetra-24318"
+  },
+  "targets": {},
+  "etags": {}
 }

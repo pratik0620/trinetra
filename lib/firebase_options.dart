@@ -41,51 +41,44 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyAFnJw-8n9K_7D9AWVMWVi_I9JrTYGe5x0',
-    appId: '1:37224293536:web:e02edf584d6cad720815c5',
-    messagingSenderId: '37224293536',
-    projectId: 'trinetra-c7c20',
-    authDomain: 'trinetra-c7c20.firebaseapp.com',
-    databaseURL: 'https://trinetra-c7c20-default-rtdb.asia-southeast1.firebasedatabase.app',
-    storageBucket: 'trinetra-c7c20.firebasestorage.app',
-    measurementId: 'G-JYTTGM8DPF',
+    apiKey: 'AIzaSyCDsTHzdVwE8z6nNag1GPSvemUJikhATdg',
+    appId: '1:191686723958:web:08ae5ce4a8615633481257',
+    messagingSenderId: '191686723958',
+    projectId: 'trinetra-24318',
+    authDomain: 'trinetra-24318.firebaseapp.com',
+    storageBucket: 'trinetra-24318.firebasestorage.app',
+    measurementId: 'G-EFNYD9VRFJ',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyDMvQ6XzcgapgTD_C3xAkpDygNHyhcxhjg',
     appId: '1:37224293536:android:7372dd9159c4b2720815c5',
     messagingSenderId: '37224293536',
-    projectId: 'trinetra-c7c20',
-    databaseURL: 'https://trinetra-c7c20-default-rtdb.asia-southeast1.firebasedatabase.app',
-    storageBucket: 'trinetra-c7c20.firebasestorage.app',
-  );
+    projectId: 'trinetra-24318',
+    databaseURL: 'https://trinetra-24318-default-rtdb.asia-southeast1.firebasedatabase.app',
+    storageBucket: 'trinetra-24318.firebasestorage.app',
+
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyBUYRS1dhzpzbCTwnz92mD0DMDptPlPXps',
-    appId: '1:37224293536:ios:2a5be094acc22ac00815c5',
-    messagingSenderId: '37224293536',
-    projectId: 'trinetra-c7c20',
-    databaseURL: 'https://trinetra-c7c20-default-rtdb.asia-southeast1.firebasedatabase.app',
-    storageBucket: 'trinetra-c7c20.firebasestorage.app',
-    iosBundleId: 'com.example.womenSafetyApp',
-  );
-  static const FirebaseOptions macos = FirebaseOptions(
-    apiKey: 'AIzaSyBUYRS1dhzpzbCTwnz92mD0DMDptPlPXps',
-    appId: '1:37224293536:ios:2a5be094acc22ac00815c5',
-    messagingSenderId: '37224293536',
-    projectId: 'trinetra-c7c20',
-    databaseURL: 'https://trinetra-c7c20-default-rtdb.asia-southeast1.firebasedatabase.app',
-    storageBucket: 'trinetra-c7c20.firebasestorage.app',
+    apiKey: 'AIzaSyDNNO7TFSaqeduBzeSD2vbdX0R-DzcH258',
+    appId: '1:191686723958:ios:cda108226c80685b481257',
+    messagingSenderId: '191686723958',
+    projectId: 'trinetra-24318',
+    storageBucket: 'trinetra-24318.firebasestorage.app',
     iosBundleId: 'com.example.womenSafetyApp',
   );
 
-  static const FirebaseOptions windows = FirebaseOptions(
-    apiKey: 'AIzaSyAFnJw-8n9K_7D9AWVMWVi_I9JrTYGe5x0',
-    appId: '1:37224293536:web:aaea819283cb57510815c5',
-    messagingSenderId: '37224293536',
-    projectId: 'trinetra-c7c20',
-    authDomain: 'trinetra-c7c20.firebaseapp.com',
-    databaseURL: 'https://trinetra-c7c20-default-rtdb.asia-southeast1.firebasedatabase.app',
-    storageBucket: 'trinetra-c7c20.firebasestorage.app',
-    measurementId: 'G-JB4ZNSX0QH',
   );
+
+  );
+
+  static const FirebaseOptions windows = FirebaseOptions(
+    apiKey: 'AIzaSyCDsTHzdVwE8z6nNag1GPSvemUJikhATdg',
+    appId: '1:191686723958:web:613ac278dade45a9481257',
+    messagingSenderId: '191686723958',
+    projectId: 'trinetra-24318',
+    authDomain: 'trinetra-24318.firebaseapp.com',
+    storageBucket: 'trinetra-24318.firebasestorage.app',
+    measurementId: 'G-77WNYVCGCV',
+  );
+
 }
