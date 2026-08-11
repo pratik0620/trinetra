@@ -34,6 +34,7 @@ class RelayServiceImpl implements RelayService {
   RelayState _currentState = RelayState.idle;
   
   StreamSubscription<List<ScanResult>>? _scanSubscription;
+  StreamSubscription<bool>? _isScanningSubscription;
   StreamSubscription<BluetoothAdapterState>? _adapterSubscription;
   Timer? _scanTimer;
   bool _isScanTimerActive = false;
@@ -135,6 +136,26 @@ class RelayServiceImpl implements RelayService {
     }
   }
 
+  Future<void> _startScanIfPossible() async {
+    if (kIsWeb || !(Platform.isAndroid || Platform.isIOS || Platform.isMacOS)) {
+      return;
+    }
+    
+    // Check if scan is already active in flutter_blue_plus
+    try {
+      if (!FlutterBluePlus.isScanningNow) {
+        debugPrint('[RELAY] No active BLE scan detected. Initiating background scan...');
+        await FlutterBluePlus.startScan(
+          timeout: const Duration(minutes: 5),
+        );
+      } else {
+        debugPrint('[RELAY] BLE scan is already active. Subscribing to scanResults.');
+      }
+    } catch (e) {
+      debugPrint('[RELAY] startScan failed: $e');
+    }
+  }
+
   @override
   Future<void> startScanning() async {
     if (_currentState == RelayState.scanning || _currentState == RelayState.nearbyEmergencyDetected) {
@@ -154,22 +175,10 @@ class RelayServiceImpl implements RelayService {
     }
     
     _updateState(RelayState.scanning);
-    debugPrint('[RELAY] Starting periodic scan...');
-    
     _isScanTimerActive = true;
-    _runPeriodicScanCycle();
-  }
-
-  /// Implements adaptive/periodic scanning:
-  /// Scans for 3 seconds, then idles for 7 seconds. Repeats until stopped.
-  void _runPeriodicScanCycle() async {
-    if (!_isScanTimerActive) return;
     
-    debugPrint('[RELAY] Scan Cycle: Scanning for 3 seconds...');
-    
-    await FlutterBluePlus.stopScan();
-    await _scanSubscription?.cancel();
-    
+    // 1. Subscribe to global scan results stream
+    _scanSubscription?.cancel();
     _scanSubscription = FlutterBluePlus.scanResults.listen((results) {
       for (var result in results) {
         final manufacturerData = result.advertisementData.manufacturerData;
@@ -177,13 +186,11 @@ class RelayServiceImpl implements RelayService {
           final bytes = manufacturerData[65535]!;
           try {
             final csvString = utf8.decode(bytes);
-            debugPrint('[RELAY] Found relay advertisement raw: $csvString');
+            debugPrint('[RELAY] Found relay advertisement: $csvString');
             
             final packet = RelayPacket.fromCsv(csvString);
             if (!_isDuplicate(packet)) {
               _packetController.add(packet);
-              
-              // Switch to active scanning (longer scan window) temporarily for 30 seconds
               _triggerTemporaryActiveScan();
             } else {
               debugPrint('[RELAY] Duplicate packet ignored: ${packet.deviceId}');
@@ -197,62 +204,29 @@ class RelayServiceImpl implements RelayService {
       debugPrint('[RELAY] Scan error in listener: $e');
     });
 
-    try {
-      // Start scanning
-      await FlutterBluePlus.startScan(
-        withServices: [Guid(relayServiceUuid)],
-        timeout: const Duration(seconds: 3),
-      );
-    } catch (e) {
-      debugPrint('[RELAY] Error starting scan: $e');
+    // 2. Subscribe to scan state changes to auto-restart scan if stopped externally
+    if (!kIsWeb && (Platform.isAndroid || Platform.isIOS || Platform.isMacOS)) {
+      _isScanningSubscription?.cancel();
+      _isScanningSubscription = FlutterBluePlus.isScanning.listen((isScanning) {
+        if (!isScanning && _currentState == RelayState.scanning && _isScanTimerActive) {
+          debugPrint('[RELAY] Scan stopped externally. Restarting...');
+          _startScanIfPossible();
+        }
+      });
     }
 
-    // Schedule next scan in 10 seconds (7 seconds idle)
-    _scanTimer?.cancel();
-    _scanTimer = Timer(const Duration(seconds: 10), () {
-      if (_currentState == RelayState.scanning) {
-        _runPeriodicScanCycle();
-      }
-    });
+    // 3. Trigger scanning
+    await _startScanIfPossible();
   }
 
-  /// Temporarily switches scanning behavior to continuous active scanning for 30 seconds
-  void _triggerTemporaryActiveScan() async {
-    debugPrint('[RELAY] ⚠️ Relay beacon detected! Switching to active scanning for 30s...');
+  void _triggerTemporaryActiveScan() {
+    debugPrint('[RELAY] ⚠️ Relay beacon detected! Transitioning state to nearbyEmergencyDetected.');
     _updateState(RelayState.nearbyEmergencyDetected);
     
     _scanTimer?.cancel();
-    await FlutterBluePlus.stopScan();
-    await _scanSubscription?.cancel();
-
-    _scanSubscription = FlutterBluePlus.scanResults.listen((results) {
-      for (var result in results) {
-        final manufacturerData = result.advertisementData.manufacturerData;
-        if (manufacturerData.containsKey(65535)) {
-          final bytes = manufacturerData[65535]!;
-          try {
-            final csvString = utf8.decode(bytes);
-            final packet = RelayPacket.fromCsv(csvString);
-            if (!_isDuplicate(packet)) {
-              _packetController.add(packet);
-            }
-          } catch (_) {}
-        }
-      }
-    });
-
-    try {
-      await FlutterBluePlus.startScan(
-        withServices: [Guid(relayServiceUuid)],
-        timeout: const Duration(seconds: 30),
-      );
-    } catch (_) {}
-
-    // After 30 seconds, resume standard periodic scanning
     _scanTimer = Timer(const Duration(seconds: 30), () {
       if (_isScanTimerActive) {
         _updateState(RelayState.scanning);
-        _runPeriodicScanCycle();
       } else {
         _updateState(RelayState.idle);
       }
@@ -264,15 +238,15 @@ class RelayServiceImpl implements RelayService {
     _isScanTimerActive = false;
     _scanTimer?.cancel();
     _scanTimer = null;
-    try {
-      await FlutterBluePlus.stopScan();
-    } catch (e) {
-      debugPrint('[RELAY] stopScan failed: $e');
-    }
+    
+    _isScanningSubscription?.cancel();
+    _isScanningSubscription = null;
+    
     await _scanSubscription?.cancel();
     _scanSubscription = null;
+    
     _updateState(RelayState.idle);
-    debugPrint('[RELAY] Stopped scanning.');
+    debugPrint('[RELAY] Stopped scanning (subscription removed, left scan active).');
   }
 
   @override
