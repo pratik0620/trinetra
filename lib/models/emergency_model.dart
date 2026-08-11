@@ -9,6 +9,7 @@ class EmergencyModel {
   final double latitude;
   final double longitude;
   final double accuracy;
+  final bool isFallback;
   final DateTime? createdAt;
   final DateTime? updatedAt;
   final DateTime? resolvedAt;
@@ -23,6 +24,7 @@ class EmergencyModel {
     required this.latitude,
     required this.longitude,
     required this.accuracy,
+    this.isFallback = false,
     this.createdAt,
     this.updatedAt,
     this.resolvedAt,
@@ -38,9 +40,10 @@ class EmergencyModel {
       deviceId: data['deviceId'] ?? '',
       triggerType: data['triggerType'] ?? 'manual_sos',
       status: data['status'] ?? 'active',
-      latitude: (data['latitude'] as num?)?.toDouble() ?? 28.6139,
-      longitude: (data['longitude'] as num?)?.toDouble() ?? 77.2090,
+      latitude: (data['latitude'] as num?)?.toDouble() ?? 0.0,
+      longitude: (data['longitude'] as num?)?.toDouble() ?? 0.0,
       accuracy: (data['accuracy'] as num?)?.toDouble() ?? 5.0,
+      isFallback: data['isFallback'] == true || data['isFallback']?.toString() == 'true',
       createdAt: (data['createdAt'] as Timestamp?)?.toDate(),
       updatedAt: (data['updatedAt'] as Timestamp?)?.toDate(),
       resolvedAt: (data['resolvedAt'] as Timestamp?)?.toDate(),
@@ -57,6 +60,7 @@ class EmergencyModel {
       'latitude': latitude,
       'longitude': longitude,
       'accuracy': accuracy,
+      'isFallback': isFallback,
       'createdAt': createdAt != null
           ? Timestamp.fromDate(createdAt!)
           : FieldValue.serverTimestamp(),
@@ -66,3 +70,4 @@ class EmergencyModel {
     };
   }
 }
+

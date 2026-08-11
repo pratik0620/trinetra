@@ -24,9 +24,6 @@ class AppBottomNavBar extends StatelessWidget {
         context.go('/people');
         break;
       case 3:
-        context.go('/history');
-        break;
-      case 4:
         context.go('/profile');
         break;
     }
@@ -71,12 +68,6 @@ class AppBottomNavBar extends StatelessWidget {
           _buildNavItem(
             context,
             index: 3,
-            icon: Icons.history_rounded,
-            label: 'History',
-          ),
-          _buildNavItem(
-            context,
-            index: 4,
             icon: Icons.person_rounded,
             label: 'Profile',
           ),

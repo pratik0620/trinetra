@@ -35,7 +35,14 @@ class PersonCard extends StatelessWidget {
               children: [
                 CircleAvatar(
                   radius: 24,
-                  backgroundImage: NetworkImage(contact.avatarUrl),
+                  backgroundColor: AppColors.primaryContainer,
+                  child: Text(
+                    contact.name.isNotEmpty ? contact.name[0].toUpperCase() : 'C',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.onPrimaryContainer,
+                    ),
+                  ),
                 ),
                 Positioned(
                   bottom: 0,
@@ -109,7 +116,14 @@ class PersonCard extends StatelessWidget {
             children: [
               CircleAvatar(
                 radius: 24,
-                backgroundImage: NetworkImage(contact.avatarUrl),
+                backgroundColor: AppColors.primaryContainer,
+                child: Text(
+                  contact.name.isNotEmpty ? contact.name[0].toUpperCase() : 'C',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.onPrimaryContainer,
+                  ),
+                ),
               ),
               Positioned(
                 bottom: 0,
