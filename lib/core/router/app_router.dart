@@ -6,7 +6,6 @@ import '../../features/emergency/guardian_emergency_active_screen.dart';
 import '../../features/emergency/guardian_emergency_responding_screen.dart';
 import '../../features/emergency/guardian_emergency_resolved_screen.dart';
 import '../../features/emergency/my_emergency_screen.dart';
-import '../../features/history/history_screen.dart';
 import '../../features/home/home_screen.dart';
 import '../../features/map/map_screen.dart';
 import '../../features/onboarding/onboarding_screen.dart';
@@ -59,10 +58,8 @@ class AppRouter {
             currentIndex = 1;
           } else if (location.startsWith('/people')) {
             currentIndex = 2;
-          } else if (location.startsWith('/history')) {
-            currentIndex = 3;
           } else if (location.startsWith('/profile')) {
-            currentIndex = 4;
+            currentIndex = 3;
           }
 
           return Scaffold(
@@ -87,10 +84,6 @@ class AppRouter {
           GoRoute(
             path: '/people',
             builder: (context, state) => const PeopleScreen(),
-          ),
-          GoRoute(
-            path: '/history',
-            builder: (context, state) => const HistoryScreen(),
           ),
           GoRoute(
             path: '/profile',

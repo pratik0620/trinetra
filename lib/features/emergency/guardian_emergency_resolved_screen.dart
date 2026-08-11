@@ -114,7 +114,7 @@ class GuardianEmergencyResolvedScreen extends ConsumerWidget {
                 child: ElevatedButton.icon(
                   onPressed: () {
                     notifier.dismissGuardianEmergency();
-                    context.go('/history');
+                    context.go('/home');
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primaryContainer,
@@ -123,9 +123,9 @@ class GuardianEmergencyResolvedScreen extends ConsumerWidget {
                       borderRadius: BorderRadius.circular(27),
                     ),
                   ),
-                  icon: const Icon(Icons.history_rounded),
+                  icon: const Icon(Icons.home_rounded),
                   label: const Text(
-                    'VIEW EVENT DETAILS',
+                    'RETURN TO HOME',
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.bold,

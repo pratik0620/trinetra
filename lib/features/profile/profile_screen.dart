@@ -27,7 +27,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final phone = profileAsync.value?.phone.isNotEmpty == true
         ? profileAsync.value!.phone
         : (firebaseUser?.phoneNumber ?? state.currentUser.phone);
-    final avatarUrl = profileAsync.value?.photoUrl ?? state.currentUser.avatarUrl;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -52,7 +51,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                           ),
                           child: CircleAvatar(
                             radius: 50,
-                            backgroundImage: NetworkImage(avatarUrl),
+                            backgroundColor: AppColors.primaryContainer,
+                            child: Text(
+                              name.isNotEmpty ? name[0].toUpperCase() : 'U',
+                              style: const TextStyle(
+                                fontSize: 42,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.onPrimaryContainer,
+                              ),
+                            ),
                           ),
                         ),
                         Positioned(
