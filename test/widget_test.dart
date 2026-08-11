@@ -2,6 +2,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:women_safety_app/app.dart';
+import 'package:women_safety_app/providers/app_providers.dart';
+import 'provider_test.dart'; // To use FakeBleService
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -10,8 +12,11 @@ void main() {
     SharedPreferences.setMockInitialValues({});
 
     await tester.pumpWidget(
-      const ProviderScope(
-        child: RAKSHAApp(),
+      ProviderScope(
+        overrides: [
+          bleServiceProvider.overrideWithValue(FakeBleService()),
+        ],
+        child: const RAKSHAApp(),
       ),
     );
     await tester.pump(const Duration(milliseconds: 2500));

@@ -15,6 +15,8 @@ import 'package:women_safety_app/models/user_model.dart';
 import 'package:women_safety_app/services/auth_service.dart';
 import 'package:women_safety_app/repositories/auth_repository.dart';
 import 'package:women_safety_app/repositories/emergency_repository.dart';
+import 'package:women_safety_app/models/offline_emergency_model.dart';
+import 'package:women_safety_app/models/emergency_location_model.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb_auth;
 
 class FakeBleService implements BleService {
@@ -70,8 +72,9 @@ class FakeEmergencyRepository implements EmergencyRepository {
     required String userId,
     required String deviceId,
     required String triggerType,
-    double latitude = 28.6139,
-    double longitude = 77.2090,
+    double? latitude,
+    double? longitude,
+    bool isFallback = false,
     double accuracy = 5.0,
   }) async {
     createEmergencyCount++;
@@ -101,6 +104,29 @@ class FakeEmergencyRepository implements EmergencyRepository {
 
   @override
   Stream<List<SafetyEventFirestoreModel>> streamSafetyHistory(String userId) => Stream.value([]);
+
+  @override
+  void registerOfflineEmergency(OfflineEmergencyModel model) {}
+
+  @override
+  Stream<OfflineEmergencyModel?> streamUnifiedEmergency(String emergencyId) => Stream.value(null);
+
+  @override
+  Future<void> syncPendingEmergencyUpdates() async {}
+
+  @override
+  Future<void> updateUserEmergencyLocation({
+    required String emergencyId,
+    required String userId,
+    required String name,
+    required String role,
+    required double latitude,
+    required double longitude,
+    bool isFallback = false,
+  }) async {}
+
+  @override
+  Stream<List<EmergencyLocationModel>> streamEmergencyLocations(String emergencyId) => Stream.value([]);
 }
 
 class FakeAuthService implements AuthService {

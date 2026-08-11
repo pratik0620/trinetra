@@ -1,12 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
+import 'providers/relay_provider.dart';
 
-class RAKSHAApp extends StatelessWidget {
+class RAKSHAApp extends ConsumerWidget {
   const RAKSHAApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Eagerly instantiate the relayStateProvider to start adaptive background scanning/advertising.
+    ref.watch(relayStateProvider);
+
     return MaterialApp.router(
       title: 'RAKSHA',
       debugShowCheckedModeBanner: false,
