@@ -5,10 +5,9 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/theme/app_colors.dart';
-import '../../models/offline_emergency_model.dart';
+import '../../models/emergency_location_model.dart';
 import '../../models/user_model.dart';
 import '../../providers/app_providers.dart';
-import '../../shared/widgets/map_placeholder_widget.dart';
 import 'widgets/emergency_map.dart';
 
 class GuardianEmergencyActiveScreen extends ConsumerStatefulWidget {
@@ -29,6 +28,7 @@ class _GuardianEmergencyActiveScreenState
   Timer? _timer;
   int _elapsedSeconds = 0;
   UserModel? _victimProfile;
+  bool _isGuardianTrackingStarted = false;
 
   @override
   void initState() {
@@ -43,6 +43,8 @@ class _GuardianEmergencyActiveScreenState
   @override
   void dispose() {
     _timer?.cancel();
+    // Stop guardian location updates when leaving the screen
+    ref.read(liveLocationServiceProvider).stopTracking();
     super.dispose();
   }
 
@@ -57,6 +59,25 @@ class _GuardianEmergencyActiveScreenState
     } catch (_) {}
   }
 
+  void _startGuardianLiveLocation(String eId) {
+    if (_isGuardianTrackingStarted) return;
+    _isGuardianTrackingStarted = true;
+
+    final activeUid = ref.read(activeUserUidProvider);
+    final authUser = ref.read(authRepositoryProvider).currentUser;
+    final guardianUid = activeUid ?? authUser?.uid ?? 'guardian_user';
+
+    final userProfile = ref.read(currentUserProfileProvider).value;
+    final guardianName = userProfile?.displayName ?? 'Guardian';
+
+    ref.read(liveLocationServiceProvider).startTracking(
+          emergencyId: eId,
+          userId: guardianUid,
+          name: guardianName,
+          role: 'guardian',
+        );
+  }
+
   void _onRespond(String eId) async {
     final activeUid = ref.read(activeUserUidProvider);
     final authUser = ref.read(authRepositoryProvider).currentUser;
@@ -67,9 +88,14 @@ class _GuardianEmergencyActiveScreenState
       emergencyId: eId,
       guardianUid: guardianUid,
     );
+
+    _startGuardianLiveLocation(eId);
   }
 
   void _onResolve(String eId) async {
+    // Stop guardian tracking upon emergency resolution
+    ref.read(liveLocationServiceProvider).stopTracking();
+
     final emergencyRepo = ref.read(emergencyRepositoryProvider);
     await emergencyRepo.resolveEmergency(eId);
   }
@@ -115,12 +141,13 @@ class _GuardianEmergencyActiveScreenState
     } catch (_) {}
   }
 
+  /// Fixes "OPEN IN MAPS" to launch exact live victim coordinates.
   Future<void> _launchMaps(double? lat, double? lng) async {
     if (lat == null || lng == null || (lat == 0.0 && lng == 0.0)) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Location coordinates unavailable'),
+            content: Text('Victim location coordinates unavailable'),
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -130,6 +157,11 @@ class _GuardianEmergencyActiveScreenState
 
     final googleMapsUri =
         Uri.parse('https://www.google.com/maps/search/?api=1&query=$lat,$lng');
+    debugPrint('==================================================');
+    debugPrint('OPEN IN MAPS COORD VERIFICATION: lat=$lat, lng=$lng');
+    debugPrint('Launching URL: $googleMapsUri');
+    debugPrint('==================================================');
+
     try {
       if (await canLaunchUrl(googleMapsUri)) {
         await launchUrl(googleMapsUri, mode: LaunchMode.externalApplication);
@@ -140,7 +172,7 @@ class _GuardianEmergencyActiveScreenState
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Location: ${lat.toStringAsFixed(4)}, ${lng.toStringAsFixed(4)}'),
+            content: Text('Location: ${lat.toStringAsFixed(5)}, ${lng.toStringAsFixed(5)}'),
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -171,9 +203,36 @@ class _GuardianEmergencyActiveScreenState
     final emergencyAsync = ref.watch(singleEmergencyUnifiedProvider(eId));
     final emergency = emergencyAsync.value;
 
+    final locationsAsync = ref.watch(emergencyLocationsProvider(eId));
+    final liveLocations = locationsAsync.value ?? [];
+
     if (emergency != null && emergency.userId.isNotEmpty) {
       _loadVictimProfile(emergency.userId);
     }
+
+    final status = (emergency?.status ?? 'active').toLowerCase();
+    final isResponding = status == 'responding' || status == 'acknowledged';
+    final isResolved = status == 'resolved' || status == 'cancelled';
+
+    // Start guardian live location tracking if viewing active/responding emergency
+    if (!isResolved && !_isGuardianTrackingStarted) {
+      _startGuardianLiveLocation(eId);
+    }
+
+    // Determine Single Source of Truth for Victim Location
+    EmergencyLocationModel? victimLocationDoc;
+    try {
+      victimLocationDoc = liveLocations.firstWhere(
+        (l) => l.isVictim && l.latitude != 0.0 && l.longitude != 0.0,
+      );
+    } catch (_) {}
+
+    final victimLat = victimLocationDoc?.latitude ?? emergency?.latitude;
+    final victimLng = victimLocationDoc?.longitude ?? emergency?.longitude;
+
+    final hasVictimLocation = victimLat != null &&
+        victimLng != null &&
+        (victimLat != 0.0 || victimLng != 0.0);
 
     final victimName = emergency?.userName.isNotEmpty == true &&
             emergency?.userName != 'RAKSHA Contact'
@@ -181,16 +240,6 @@ class _GuardianEmergencyActiveScreenState
         : (_victimProfile?.displayName ?? 'Priya Sharma');
 
     final victimPhone = emergency?.phoneNumber ?? _victimProfile?.phone;
-
-    final status = (emergency?.status ?? 'active').toLowerCase();
-
-    final isResponding = status == 'responding' || status == 'acknowledged';
-    final isResolved = status == 'resolved' || status == 'cancelled';
-
-    final hasLocation = emergency?.latitude != null &&
-        emergency?.longitude != null &&
-        (emergency!.latitude! != 0.0 || emergency.longitude! != 0.0);
-
     final triggerText = _formatTriggerType(emergency?.triggerType ?? 'manual_sos');
     final formattedTime = emergency?.timestamp != null
         ? DateFormat('h:mm a').format(emergency!.timestamp)
@@ -200,6 +249,15 @@ class _GuardianEmergencyActiveScreenState
         ? DateTime.now().difference(emergency!.timestamp).inSeconds
         : _elapsedSeconds;
     final displaySeconds = timeDiff > 0 ? timeDiff : _elapsedSeconds;
+
+    // Calculate Location Age
+    String ageText = 'Updated just now';
+    bool isStaleLocation = false;
+    if (victimLocationDoc != null) {
+      final sec = victimLocationDoc.secondsAgo;
+      isStaleLocation = victimLocationDoc.isStale;
+      ageText = isStaleLocation ? '⚠ Updated ${sec}s ago' : 'Updated ${sec}s ago';
+    }
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -238,7 +296,7 @@ class _GuardianEmergencyActiveScreenState
                   : (isResponding
                       ? AppColors.surfaceContainerHigh
                       : AppColors.errorContainer),
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -287,7 +345,7 @@ class _GuardianEmergencyActiveScreenState
                         ),
                     ],
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 6),
                   Text(
                     isResolved
                         ? 'Emergency marked as resolved'
@@ -295,7 +353,7 @@ class _GuardianEmergencyActiveScreenState
                             ? 'You are responding to $victimName'
                             : '$victimName needs immediate help'),
                     style: TextStyle(
-                      fontSize: 22,
+                      fontSize: 20,
                       fontWeight: FontWeight.bold,
                       color: isResolved
                           ? AppColors.onBackground
@@ -320,7 +378,7 @@ class _GuardianEmergencyActiveScreenState
                       Text(
                         'Triggered $displaySeconds seconds ago ($formattedTime)',
                         style: TextStyle(
-                          fontSize: 13,
+                          fontSize: 12,
                           color: isResolved
                               ? AppColors.onSurfaceVariant
                               : (isResponding
@@ -328,21 +386,32 @@ class _GuardianEmergencyActiveScreenState
                                   : AppColors.onErrorContainer),
                         ),
                       ),
+                      const Spacer(),
+                      if (hasVictimLocation)
+                        Text(
+                          ageText,
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: isStaleLocation ? AppColors.error : AppColors.primary,
+                          ),
+                        ),
                     ],
                   ),
                 ],
               ),
             ),
 
-            // Live Embedded Google Map / Location Section
+            // Live Embedded Google Map
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: EmergencyMap(
-                  latitude: emergency?.latitude,
-                  longitude: emergency?.longitude,
+                  latitude: victimLat,
+                  longitude: victimLng,
                   focusName: victimName,
                   isEmergencyMode: true,
+                  liveLocations: liveLocations,
                 ),
               ),
             ),
@@ -360,7 +429,7 @@ class _GuardianEmergencyActiveScreenState
                   ),
                 ],
               ),
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(18),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -378,23 +447,23 @@ class _GuardianEmergencyActiveScreenState
                       _buildInfoTile(
                           'Status', status.toUpperCase(), AppColors.primary),
                       _buildInfoTile(
-                        'Location',
-                        hasLocation
-                            ? '${emergency!.latitude!.toStringAsFixed(3)}, ${emergency.longitude!.toStringAsFixed(3)}'
+                        'Victim Location',
+                        hasVictimLocation
+                            ? '${victimLat!.toStringAsFixed(4)}, ${victimLng!.toStringAsFixed(4)}'
                             : 'Unavailable',
-                        hasLocation ? AppColors.onSurface : AppColors.error,
+                        hasVictimLocation ? AppColors.onSurface : AppColors.error,
                       ),
                       _buildInfoTile(
-                          'Timestamp', formattedTime, AppColors.onSurface),
+                          'GPS Update', ageText, isStaleLocation ? AppColors.error : AppColors.onSurface),
                     ],
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 14),
 
-                  // State-dependent Primary Action Button
+                  // State-dependent Primary Action Buttons
                   if (isResolved)
                     SizedBox(
                       width: double.infinity,
-                      height: 54,
+                      height: 52,
                       child: ElevatedButton.icon(
                         onPressed: () => context.go('/home'),
                         style: ElevatedButton.styleFrom(
@@ -417,7 +486,7 @@ class _GuardianEmergencyActiveScreenState
                   else if (!isResponding)
                     SizedBox(
                       width: double.infinity,
-                      height: 56,
+                      height: 54,
                       child: ElevatedButton.icon(
                         onPressed: () => _onRespond(eId),
                         style: ElevatedButton.styleFrom(
@@ -444,12 +513,11 @@ class _GuardianEmergencyActiveScreenState
                       children: [
                         SizedBox(
                           width: double.infinity,
-                          height: 52,
+                          height: 50,
                           child: ElevatedButton.icon(
-                            onPressed: () => _launchMaps(
-                              emergency?.latitude,
-                              emergency?.longitude,
-                            ),
+                            onPressed: hasVictimLocation
+                                ? () => _launchMaps(victimLat, victimLng)
+                                : null,
                             style: ElevatedButton.styleFrom(
                               backgroundColor: AppColors.primaryContainer,
                               foregroundColor: AppColors.onPrimaryContainer,
@@ -523,7 +591,7 @@ class _GuardianEmergencyActiveScreenState
                             ),
                           ],
                         ),
-                        const SizedBox(height: 10),
+                        const SizedBox(height: 8),
                         TextButton.icon(
                           onPressed: () => _onResolve(eId),
                           icon: const Icon(

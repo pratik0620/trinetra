@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/theme/app_colors.dart';
+import '../../providers/app_providers.dart';
 import '../../providers/mock_state_provider.dart';
 
 class MyEmergencyScreen extends ConsumerStatefulWidget {
@@ -36,10 +37,34 @@ class _MyEmergencyScreenState extends ConsumerState<MyEmergencyScreen>
         setState(() => _seconds++);
       }
     });
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _startVictimLiveLocation();
+    });
+  }
+
+  void _startVictimLiveLocation() {
+    final activeUid = ref.read(activeUserUidProvider);
+    final authUser = ref.read(authRepositoryProvider).currentUser;
+    final victimUid = activeUid ?? authUser?.uid ?? 'victim_user';
+
+    final userProfile = ref.read(currentUserProfileProvider).value;
+    final victimName = userProfile?.displayName ?? 'Priya';
+
+    final activeEmergency = ref.read(userActiveEmergencyProvider).value;
+    final eId = activeEmergency?.id ?? 'emergency_active_demo';
+
+    ref.read(liveLocationServiceProvider).startTracking(
+          emergencyId: eId,
+          userId: victimUid,
+          name: victimName,
+          role: 'victim',
+        );
   }
 
   @override
   void dispose() {
+    ref.read(liveLocationServiceProvider).stopTracking();
     _pulseController.dispose();
     _timer?.cancel();
     super.dispose();
@@ -218,6 +243,7 @@ class _MyEmergencyScreenState extends ConsumerState<MyEmergencyScreen>
                     height: 50,
                     child: OutlinedButton(
                       onPressed: () {
+                        ref.read(liveLocationServiceProvider).stopTracking();
                         ref.read(mockStateProvider.notifier).cancelMySos();
                         context.pop();
                       },

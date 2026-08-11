@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
+import '../models/emergency_location_model.dart';
 import '../models/emergency_model.dart';
 import '../models/offline_emergency_model.dart';
 import '../models/safety_event_model.dart';
@@ -312,5 +313,57 @@ class EmergencyRepository {
         .map((snap) => snap.docs
             .map((doc) => SafetyEventFirestoreModel.fromFirestore(doc))
             .toList());
+  }
+
+  /// Updates live location document under emergencies/{emergencyId}/locations/{userId}
+  Future<void> updateUserEmergencyLocation({
+    required String emergencyId,
+    required String userId,
+    required String name,
+    required String role, // 'victim' or 'guardian'
+    required double latitude,
+    required double longitude,
+  }) async {
+    final locationRef = _emergencies
+        .doc(emergencyId)
+        .collection('locations')
+        .doc(userId);
+
+    final data = {
+      'userId': userId,
+      'name': name,
+      'role': role.toLowerCase(),
+      'latitude': latitude,
+      'longitude': longitude,
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+
+    try {
+      await locationRef.set(data, SetOptions(merge: true));
+
+      // Also update primary emergency doc if victim
+      if (role.toLowerCase() == 'victim') {
+        await _emergencies.doc(emergencyId).update({
+          'latitude': latitude,
+          'longitude': longitude,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
+    } catch (e) {
+      debugPrint('Location update note: $e');
+    }
+  }
+
+  /// Real-time stream of all location documents in emergencies/{emergencyId}/locations
+  Stream<List<EmergencyLocationModel>> streamEmergencyLocations(String emergencyId) {
+    return _emergencies
+        .doc(emergencyId)
+        .collection('locations')
+        .snapshots()
+        .map((snap) {
+      return snap.docs
+          .map((doc) => EmergencyLocationModel.fromFirestore(doc))
+          .toList();
+    });
   }
 }
