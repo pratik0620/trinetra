@@ -108,16 +108,37 @@ class RelayServiceImpl implements RelayService {
     
     _updateState(RelayState.advertising);
     final payload = packet.toCsv();
-    debugPrint('[RELAY] Starting advertising with payload: $payload');
+    
+    // Check permission status for individual logging
+    final advGranted = await Permission.bluetoothAdvertise.isGranted;
+    
+    debugPrint('[Relay] Starting advertising');
+    debugPrint('[Relay] Bluetooth enabled: $btOn');
+    debugPrint('[Relay] Advertiser available: true');
+    debugPrint('[Relay] Advertise permission: ${advGranted ? "granted" : "denied"}');
+    debugPrint('[Relay] Service UUID: $relayServiceUuid');
+    debugPrint('[Relay] Payload length: ${payload.length}');
+    debugPrint('[Relay] Calling BluetoothLeAdvertiser.startAdvertising()');
+    debugPrint('[Relay] MethodChannel startAdvertising invoked');
     
     try {
       final success = await _channel.invokeMethod<bool>('startAdvertising', {
         'serviceUuid': relayServiceUuid,
         'payload': payload,
       });
+      
+      if (success == true) {
+        debugPrint('[Relay] Native advertiser returned success');
+        debugPrint('[Relay] Advertising started successfully');
+      } else {
+        debugPrint('[Relay] Native advertiser returned error');
+        debugPrint('[Relay] Advertising failed');
+      }
+      
       return success ?? false;
     } catch (e) {
-      debugPrint('[RELAY] Platform startAdvertising error: $e');
+      debugPrint('[Relay] Native advertiser returned error: $e');
+      debugPrint('[Relay] Advertising failed');
       _updateState(RelayState.idle);
       return false;
     }
