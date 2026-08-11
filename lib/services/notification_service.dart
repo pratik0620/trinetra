@@ -2,11 +2,14 @@ import 'dart:async';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import '../models/offline_emergency_model.dart';
+import '../repositories/emergency_repository.dart';
 import '../repositories/user_repository.dart';
 
 class NotificationService {
   final FirebaseMessaging _messaging;
   final UserRepository _userRepository;
+  final EmergencyRepository _emergencyRepository;
   final FlutterLocalNotificationsPlugin _localNotifications;
 
   static const AndroidNotificationChannel _emergencyChannel =
@@ -22,9 +25,11 @@ class NotificationService {
   NotificationService({
     FirebaseMessaging? messaging,
     UserRepository? userRepository,
+    EmergencyRepository? emergencyRepository,
     FlutterLocalNotificationsPlugin? localNotifications,
   })  : _messaging = messaging ?? FirebaseMessaging.instance,
         _userRepository = userRepository ?? UserRepository(),
+        _emergencyRepository = emergencyRepository ?? EmergencyRepository(),
         _localNotifications =
             localNotifications ?? FlutterLocalNotificationsPlugin();
 
@@ -109,7 +114,7 @@ class NotificationService {
       debugPrint('FCM permission / token setup note: $e');
     }
 
-    // 5. FOREGROUND MESSAGES — Show high-priority local alert
+    // 5. FOREGROUND MESSAGES — Parse payload & show high-priority alert
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
       final data = message.data;
       final type = data['type'];
@@ -123,6 +128,9 @@ class NotificationService {
       debugPrint('==================================');
 
       if (type == 'emergency' && emergencyId != null) {
+        final offlineModel = OfflineEmergencyModel.fromFcmPayload(data);
+        _emergencyRepository.registerOfflineEmergency(offlineModel);
+
         _showForegroundNotification(
           title: message.notification?.title ?? '🚨 RAKSHA EMERGENCY',
           body: message.notification?.body ?? 'A contact needs immediate help',
@@ -150,6 +158,8 @@ class NotificationService {
       debugPrint('====================================');
 
       if (type == 'emergency' && emergencyId != null) {
+        final offlineModel = OfflineEmergencyModel.fromFcmPayload(data);
+        _emergencyRepository.registerOfflineEmergency(offlineModel);
         onEmergencyTap(emergencyId.toString());
       }
     });
@@ -172,6 +182,8 @@ class NotificationService {
         debugPrint('====================================');
 
         if (type == 'emergency' && emergencyId != null) {
+          final offlineModel = OfflineEmergencyModel.fromFcmPayload(data);
+          _emergencyRepository.registerOfflineEmergency(offlineModel);
           onEmergencyTap(emergencyId.toString());
         }
       }

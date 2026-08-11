@@ -2,11 +2,14 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../core/theme/app_colors.dart';
+import '../../models/offline_emergency_model.dart';
 import '../../models/user_model.dart';
 import '../../providers/app_providers.dart';
-import '../../providers/mock_state_provider.dart';
 import '../../shared/widgets/map_placeholder_widget.dart';
+import 'widgets/emergency_map.dart';
 
 class GuardianEmergencyActiveScreen extends ConsumerStatefulWidget {
   final String? emergencyId;
@@ -24,7 +27,7 @@ class GuardianEmergencyActiveScreen extends ConsumerStatefulWidget {
 class _GuardianEmergencyActiveScreenState
     extends ConsumerState<GuardianEmergencyActiveScreen> {
   Timer? _timer;
-  int _secondsAgo = 18;
+  int _elapsedSeconds = 0;
   UserModel? _victimProfile;
 
   @override
@@ -32,7 +35,7 @@ class _GuardianEmergencyActiveScreenState
     super.initState();
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (mounted) {
-        setState(() => _secondsAgo++);
+        setState(() => _elapsedSeconds++);
       }
     });
   }
@@ -44,64 +47,197 @@ class _GuardianEmergencyActiveScreenState
   }
 
   void _loadVictimProfile(String victimUid) async {
-    if (_victimProfile != null) return;
-    final userRepo = ref.read(userRepositoryProvider);
-    final profile = await userRepo.getUserProfile(victimUid);
-    if (profile != null && mounted) {
-      setState(() => _victimProfile = profile);
+    if (_victimProfile != null || victimUid.isEmpty) return;
+    try {
+      final userRepo = ref.read(userRepositoryProvider);
+      final profile = await userRepo.getUserProfile(victimUid);
+      if (profile != null && mounted) {
+        setState(() => _victimProfile = profile);
+      }
+    } catch (_) {}
+  }
+
+  void _onRespond(String eId) async {
+    final activeUid = ref.read(activeUserUidProvider);
+    final authUser = ref.read(authRepositoryProvider).currentUser;
+    final guardianUid = activeUid ?? authUser?.uid ?? 'guardian_user';
+
+    final emergencyRepo = ref.read(emergencyRepositoryProvider);
+    await emergencyRepo.respondToEmergency(
+      emergencyId: eId,
+      guardianUid: guardianUid,
+    );
+  }
+
+  void _onResolve(String eId) async {
+    final emergencyRepo = ref.read(emergencyRepositoryProvider);
+    await emergencyRepo.resolveEmergency(eId);
+  }
+
+  Future<void> _launchCall(String? rawPhone) async {
+    if (rawPhone == null || rawPhone.trim().isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Phone number not available for this contact'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+      return;
+    }
+    final cleanPhone = rawPhone.replaceAll(RegExp(r'[^\d+]'), '');
+    final uri = Uri.parse('tel:$cleanPhone');
+    try {
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri);
+      } else {
+        throw 'Could not launch $uri';
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Unable to make call: $cleanPhone'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     }
   }
 
-  void _onRespond() async {
-    final notifier = ref.read(mockStateProvider.notifier);
-    notifier.respondToGuardianEmergency();
-
-    final activeUid = ref.read(activeUserUidProvider);
-    final authUser = ref.read(authRepositoryProvider).currentUser;
-    final emergencyRepo = ref.read(emergencyRepositoryProvider);
-
-    final eId = widget.emergencyId ?? 'emergency_active_demo';
-    final guardianUid = activeUid ?? authUser?.uid ?? 'guardian_ananya';
-
+  Future<void> _launch112() async {
+    final uri = Uri.parse('tel:112');
     try {
-      await emergencyRepo.respondToEmergency(
-        emergencyId: eId,
-        guardianUid: guardianUid,
-      );
-    } catch (e) {
-      debugPrint('Firestore respond note: $e');
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri);
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _launchMaps(double? lat, double? lng) async {
+    if (lat == null || lng == null || (lat == 0.0 && lng == 0.0)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Location coordinates unavailable'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+      return;
     }
 
-    if (mounted) {
-      context.push('/guardian-responding?emergencyId=$eId');
+    final googleMapsUri =
+        Uri.parse('https://www.google.com/maps/search/?api=1&query=$lat,$lng');
+    try {
+      if (await canLaunchUrl(googleMapsUri)) {
+        await launchUrl(googleMapsUri, mode: LaunchMode.externalApplication);
+      } else {
+        throw 'Could not launch maps';
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Location: ${lat.toStringAsFixed(4)}, ${lng.toStringAsFixed(4)}'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  String _formatTriggerType(String rawType) {
+    switch (rawType.toLowerCase()) {
+      case 'shoe':
+      case 'smart_shoe':
+        return 'Smart Shoe';
+      case 'stomp':
+        return 'Stomp Gesture';
+      case 'fall':
+        return 'Fall Detected';
+      case 'sms':
+        return 'SMS Alert';
+      case 'manual_sos':
+      default:
+        return 'Manual SOS';
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final eId = widget.emergencyId ?? 'emergency_active_demo';
-    final emergencyAsync = ref.watch(singleEmergencyProvider(eId));
+    final emergencyAsync = ref.watch(singleEmergencyUnifiedProvider(eId));
     final emergency = emergencyAsync.value;
 
     if (emergency != null && emergency.userId.isNotEmpty) {
       _loadVictimProfile(emergency.userId);
     }
 
-    final victimName = _victimProfile?.displayName ?? 'Priya';
-    final status = emergency?.status ?? 'active';
+    final victimName = emergency?.userName.isNotEmpty == true &&
+            emergency?.userName != 'RAKSHA Contact'
+        ? emergency!.userName
+        : (_victimProfile?.displayName ?? 'Priya Sharma');
 
-    final isCancelled = status == 'cancelled' || status == 'resolved';
+    final victimPhone = emergency?.phoneNumber ?? _victimProfile?.phone;
+
+    final status = (emergency?.status ?? 'active').toLowerCase();
+
+    final isResponding = status == 'responding' || status == 'acknowledged';
+    final isResolved = status == 'resolved' || status == 'cancelled';
+
+    final hasLocation = emergency?.latitude != null &&
+        emergency?.longitude != null &&
+        (emergency!.latitude! != 0.0 || emergency.longitude! != 0.0);
+
+    final triggerText = _formatTriggerType(emergency?.triggerType ?? 'manual_sos');
+    final formattedTime = emergency?.timestamp != null
+        ? DateFormat('h:mm a').format(emergency!.timestamp)
+        : DateFormat('h:mm a').format(DateTime.now());
+
+    final timeDiff = emergency?.timestamp != null
+        ? DateTime.now().difference(emergency!.timestamp).inSeconds
+        : _elapsedSeconds;
+    final displaySeconds = timeDiff > 0 ? timeDiff : _elapsedSeconds;
 
     return Scaffold(
       backgroundColor: AppColors.background,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_rounded, color: AppColors.onBackground),
+          onPressed: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/home');
+            }
+          },
+        ),
+        title: Text(
+          isResolved
+              ? 'EMERGENCY RESOLVED'
+              : (isResponding ? 'RESPONDING TO SOS' : 'ACTIVE SOS ALERT'),
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 1.0,
+          ),
+        ),
+      ),
       body: SafeArea(
         child: Column(
           children: [
-            // Header Banner
+            // Top Emergency Status Banner
             Container(
-              color: isCancelled
-                  ? AppColors.surfaceContainerHigh
-                  : AppColors.errorContainer,
+              width: double.infinity,
+              color: isResolved
+                  ? AppColors.tertiaryContainer.withOpacity(0.4)
+                  : (isResponding
+                      ? AppColors.surfaceContainerHigh
+                      : AppColors.errorContainer),
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -109,43 +245,63 @@ class _GuardianEmergencyActiveScreenState
                   Row(
                     children: [
                       Icon(
-                        isCancelled
-                            ? Icons.check_circle_outline_rounded
-                            : Icons.warning_amber_rounded,
-                        color: isCancelled
+                        isResolved
+                            ? Icons.check_circle_rounded
+                            : (isResponding
+                                ? Icons.shield_rounded
+                                : Icons.warning_amber_rounded),
+                        color: isResolved
                             ? AppColors.tertiary
-                            : AppColors.error,
+                            : (isResponding ? AppColors.primary : AppColors.error),
                         size: 24,
                       ),
                       const SizedBox(width: 8),
                       Text(
-                        status == 'cancelled'
-                            ? 'SOS CANCELLED BY USER'
-                            : (status == 'resolved'
-                                ? 'EMERGENCY RESOLVED'
-                                : 'ACTIVE EMERGENCY'),
+                        isResolved
+                            ? 'RESOLVED'
+                            : (isResponding ? 'RESPONDING' : 'ACTIVE EMERGENCY'),
                         style: TextStyle(
-                          fontSize: 16,
+                          fontSize: 14,
                           fontWeight: FontWeight.bold,
-                          color: isCancelled
-                              ? AppColors.onSurface
-                              : AppColors.onErrorContainer,
-                          letterSpacing: 1.0,
+                          color: isResolved
+                              ? AppColors.tertiary
+                              : (isResponding
+                                  ? AppColors.primary
+                                  : AppColors.onErrorContainer),
+                          letterSpacing: 1.2,
                         ),
                       ),
+                      const Spacer(),
+                      if (emergency?.isOfflineData == true)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: Colors.black38,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: const Text(
+                            'Offline Alert',
+                            style: TextStyle(fontSize: 11, color: Colors.white70),
+                          ),
+                        ),
                     ],
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 8),
                   Text(
-                    status == 'cancelled'
-                        ? '$victimName marked themselves as safe'
-                        : '$victimName needs help',
+                    isResolved
+                        ? 'Emergency marked as resolved'
+                        : (isResponding
+                            ? 'You are responding to $victimName'
+                            : '$victimName needs immediate help'),
                     style: TextStyle(
-                      fontSize: 24,
+                      fontSize: 22,
                       fontWeight: FontWeight.bold,
-                      color: isCancelled
-                          ? AppColors.onSurface
-                          : AppColors.onErrorContainer,
+                      color: isResolved
+                          ? AppColors.onBackground
+                          : (isResponding
+                              ? AppColors.onBackground
+                              : AppColors.onErrorContainer),
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -154,18 +310,22 @@ class _GuardianEmergencyActiveScreenState
                       Icon(
                         Icons.schedule_rounded,
                         size: 14,
-                        color: isCancelled
+                        color: isResolved
                             ? AppColors.onSurfaceVariant
-                            : AppColors.onErrorContainer,
+                            : (isResponding
+                                ? AppColors.onSurfaceVariant
+                                : AppColors.onErrorContainer),
                       ),
                       const SizedBox(width: 4),
                       Text(
-                        'SOS triggered $_secondsAgo seconds ago',
+                        'Triggered $displaySeconds seconds ago ($formattedTime)',
                         style: TextStyle(
                           fontSize: 13,
-                          color: isCancelled
+                          color: isResolved
                               ? AppColors.onSurfaceVariant
-                              : AppColors.onErrorContainer,
+                              : (isResponding
+                                  ? AppColors.onSurfaceVariant
+                                  : AppColors.onErrorContainer),
                         ),
                       ),
                     ],
@@ -174,12 +334,16 @@ class _GuardianEmergencyActiveScreenState
               ),
             ),
 
-            // Live Map Area
+            // Live Embedded Google Map / Location Section
             Expanded(
-              child: MapPlaceholderWidget(
-                isEmergencyMode: true,
-                focusName: victimName,
-                distanceText: '2.4 km',
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: EmergencyMap(
+                  latitude: emergency?.latitude,
+                  longitude: emergency?.longitude,
+                  focusName: victimName,
+                  isEmergencyMode: true,
+                ),
               ),
             ),
 
@@ -200,106 +364,184 @@ class _GuardianEmergencyActiveScreenState
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // 2x2 Info Grid
+                  // 2x2 Emergency Details Grid
                   GridView.count(
                     crossAxisCount: 2,
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
-                    childAspectRatio: 2.5,
+                    childAspectRatio: 2.6,
                     mainAxisSpacing: 8,
                     crossAxisSpacing: 8,
                     children: [
                       _buildInfoTile(
-                          'Alert Type', 'Manual SOS', AppColors.emergency),
+                          'Triggered By', triggerText, AppColors.emergency),
                       _buildInfoTile(
-                          'Status', status.toUpperCase(), AppColors.emergency),
+                          'Status', status.toUpperCase(), AppColors.primary),
                       _buildInfoTile(
-                          'Location', 'Live Tracking', AppColors.onSurface),
+                        'Location',
+                        hasLocation
+                            ? '${emergency!.latitude!.toStringAsFixed(3)}, ${emergency.longitude!.toStringAsFixed(3)}'
+                            : 'Unavailable',
+                        hasLocation ? AppColors.onSurface : AppColors.error,
+                      ),
                       _buildInfoTile(
-                          'Communication', 'Via RAKSHA', AppColors.primary),
+                          'Timestamp', formattedTime, AppColors.onSurface),
                     ],
                   ),
                   const SizedBox(height: 16),
 
-                  // Primary Action (Real Firestore Update)
-                  SizedBox(
-                    width: double.infinity,
-                    height: 60,
-                    child: ElevatedButton(
-                      onPressed: isCancelled ? null : _onRespond,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primaryContainer,
-                        foregroundColor: AppColors.onPrimaryContainer,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
+                  // State-dependent Primary Action Button
+                  if (isResolved)
+                    SizedBox(
+                      width: double.infinity,
+                      height: 54,
+                      child: ElevatedButton.icon(
+                        onPressed: () => context.go('/home'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.surfaceContainer,
+                          foregroundColor: AppColors.onSurface,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
                         ),
-                        elevation: 6,
-                      ),
-                      child: Text(
-                        isCancelled ? 'EMERGENCY CLOSED' : "I'M RESPONDING",
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 1.0,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-
-                  // Secondary Actions
-                  Row(
-                    children: [
-                      Expanded(
-                        child: SizedBox(
-                          height: 48,
-                          child: OutlinedButton.icon(
-                            onPressed: () {},
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: AppColors.onSurface,
-                              side: const BorderSide(color: AppColors.outline),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                            icon: const Icon(Icons.call_rounded, size: 18),
-                            label: Text(
-                              'CALL ${victimName.toUpperCase()}',
-                              style: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
+                        icon: const Icon(Icons.home_rounded),
+                        label: const Text(
+                          'RETURN TO HOME',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: SizedBox(
-                          height: 48,
+                    )
+                  else if (!isResponding)
+                    SizedBox(
+                      width: double.infinity,
+                      height: 56,
+                      child: ElevatedButton.icon(
+                        onPressed: () => _onRespond(eId),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primaryContainer,
+                          foregroundColor: AppColors.onPrimaryContainer,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          elevation: 6,
+                        ),
+                        icon: const Icon(Icons.shield_rounded, size: 22),
+                        label: const Text(
+                          "I'M RESPONDING",
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 1.0,
+                          ),
+                        ),
+                      ),
+                    )
+                  else
+                    Column(
+                      children: [
+                        SizedBox(
+                          width: double.infinity,
+                          height: 52,
                           child: ElevatedButton.icon(
-                            onPressed: () {},
+                            onPressed: () => _launchMaps(
+                              emergency?.latitude,
+                              emergency?.longitude,
+                            ),
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.emergency,
-                              foregroundColor: Colors.white,
+                              backgroundColor: AppColors.primaryContainer,
+                              foregroundColor: AppColors.onPrimaryContainer,
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
+                                borderRadius: BorderRadius.circular(14),
                               ),
                             ),
-                            icon: const Icon(Icons.local_police_rounded,
-                                size: 18),
+                            icon: const Icon(Icons.navigation_rounded),
                             label: const Text(
-                              'CALL 112',
+                              'OPEN IN MAPS',
                               style: TextStyle(
-                                fontSize: 13,
+                                fontSize: 16,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: SizedBox(
+                                height: 46,
+                                child: OutlinedButton.icon(
+                                  onPressed: () => _launchCall(victimPhone),
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: AppColors.onSurface,
+                                    side: const BorderSide(
+                                        color: AppColors.outlineVariant),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                  ),
+                                  icon: const Icon(Icons.call_rounded,
+                                      size: 18, color: AppColors.primary),
+                                  label: Text(
+                                    'CALL ${victimName.split(" ").first.toUpperCase()}',
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: SizedBox(
+                                height: 46,
+                                child: ElevatedButton.icon(
+                                  onPressed: _launch112,
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppColors.errorContainer,
+                                    foregroundColor: AppColors.onErrorContainer,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                  ),
+                                  icon: const Icon(Icons.emergency_rounded,
+                                      size: 18),
+                                  label: const Text(
+                                    'CALL 112',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        TextButton.icon(
+                          onPressed: () => _onResolve(eId),
+                          icon: const Icon(
+                            Icons.check_circle_outline_rounded,
+                            color: AppColors.tertiary,
+                            size: 18,
+                          ),
+                          label: const Text(
+                            'MARK AS RESOLVED',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.tertiary,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                 ],
               ),
             ),
@@ -311,7 +553,7 @@ class _GuardianEmergencyActiveScreenState
 
   Widget _buildInfoTile(String label, String value, Color valueColor) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: AppColors.surfaceContainer,
         borderRadius: BorderRadius.circular(10),
@@ -323,13 +565,15 @@ class _GuardianEmergencyActiveScreenState
         children: [
           Text(
             label,
-            style: const TextStyle(fontSize: 11, color: AppColors.onSurfaceVariant),
+            style: const TextStyle(fontSize: 10, color: AppColors.onSurfaceVariant),
           ),
           const SizedBox(height: 2),
           Text(
             value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              fontSize: 13,
+              fontSize: 12,
               fontWeight: FontWeight.bold,
               color: valueColor,
             ),

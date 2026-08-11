@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/connection_request_model.dart';
 import '../models/emergency_model.dart';
+import '../models/offline_emergency_model.dart';
 import '../models/safety_event_model.dart';
 import '../models/user_model.dart';
 import '../repositories/auth_repository.dart';
@@ -104,6 +105,12 @@ final singleEmergencyProvider =
     StreamProvider.family<EmergencyModel?, String>((ref, emergencyId) {
   final emergencyRepo = ref.watch(emergencyRepositoryProvider);
   return emergencyRepo.streamEmergency(emergencyId);
+});
+
+final singleEmergencyUnifiedProvider =
+    StreamProvider.family<OfflineEmergencyModel?, String>((ref, emergencyId) {
+  final emergencyRepo = ref.watch(emergencyRepositoryProvider);
+  return emergencyRepo.streamUnifiedEmergency(emergencyId);
 });
 
 final userSafetyHistoryProvider =
