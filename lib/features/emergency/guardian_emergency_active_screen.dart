@@ -240,10 +240,14 @@ class _GuardianEmergencyActiveScreenState
       debugPrint('[GUARDIAN SCREEN] Displaying ${isLocationFallback ? "FALLBACK" : "LIVE GPS"} victim location: ($victimLat, $victimLng)');
     }
 
-    final victimName = emergency?.userName.isNotEmpty == true &&
-            emergency?.userName != 'RAKSHA Contact'
-        ? emergency!.userName
-        : (_victimProfile?.displayName ?? 'Priya Sharma');
+    String victimName = 'RAKSHA Victim';
+    if (victimLocationDoc != null && victimLocationDoc.name.isNotEmpty && victimLocationDoc.name != 'Victim') {
+      victimName = victimLocationDoc.name;
+    } else if (emergency?.userName.isNotEmpty == true && emergency?.userName != 'RAKSHA Contact') {
+      victimName = emergency!.userName;
+    } else if (_victimProfile != null && _victimProfile!.name.isNotEmpty) {
+      victimName = _victimProfile!.name;
+    }
 
     final victimPhone = emergency?.phoneNumber ?? _victimProfile?.phone;
     final triggerText = _formatTriggerType(emergency?.triggerType ?? 'manual_sos');

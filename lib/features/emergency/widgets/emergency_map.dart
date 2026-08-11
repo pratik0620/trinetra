@@ -92,15 +92,17 @@ class _EmergencyMapState extends State<EmergencyMap> {
       }
     }
 
-    // Fallback marker if liveLocations empty but latitude/longitude prop valid
-    if (markers.isEmpty && widget.latitude != null && widget.longitude != null) {
+    final hasVictimMarker = markers.any((m) => m.markerId.value.contains('victim'));
+
+    // Fallback marker if liveLocations lacks victim doc, but latitude/longitude prop valid
+    if (!hasVictimMarker && widget.latitude != null && widget.longitude != null && (widget.latitude != 0.0 || widget.longitude != 0.0)) {
       final fallbackPos = LatLng(widget.latitude!, widget.longitude!);
       markers.add(
         Marker(
           markerId: const MarkerId('emergency_fallback_victim'),
           position: fallbackPos,
           infoWindow: InfoWindow(
-            title: "${widget.focusName}'s Location",
+            title: "${widget.focusName} (Victim 🔴)",
             snippet: '🚨 Emergency SOS Signal',
           ),
           icon: BitmapDescriptor.defaultMarkerWithHue(

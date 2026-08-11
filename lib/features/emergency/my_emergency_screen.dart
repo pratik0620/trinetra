@@ -7,7 +7,8 @@ import '../../providers/app_providers.dart';
 import '../../providers/mock_state_provider.dart';
 
 class MyEmergencyScreen extends ConsumerStatefulWidget {
-  const MyEmergencyScreen({super.key});
+  final String? emergencyId;
+  const MyEmergencyScreen({super.key, this.emergencyId});
 
   @override
   ConsumerState<MyEmergencyScreen> createState() => _MyEmergencyScreenState();
@@ -43,16 +44,29 @@ class _MyEmergencyScreenState extends ConsumerState<MyEmergencyScreen>
     });
   }
 
-  void _startVictimLiveLocation() {
+  void _startVictimLiveLocation() async {
     final activeUid = ref.read(activeUserUidProvider);
     final authUser = ref.read(authRepositoryProvider).currentUser;
     final victimUid = activeUid ?? authUser?.uid ?? 'victim_user';
 
     final userProfile = ref.read(currentUserProfileProvider).value;
-    final victimName = userProfile?.displayName ?? 'Priya';
+    String victimName = 'RAKSHA Victim';
+    if (userProfile != null && userProfile.name.isNotEmpty) {
+      victimName = userProfile.name;
+    } else if (userProfile?.displayName != null && userProfile!.displayName.isNotEmpty) {
+      victimName = userProfile.displayName;
+    } else {
+      try {
+        final userRepo = ref.read(userRepositoryProvider);
+        final profile = await userRepo.getUserProfile(victimUid);
+        if (profile != null && profile.name.isNotEmpty) {
+          victimName = profile.name;
+        }
+      } catch (_) {}
+    }
 
     final activeEmergency = ref.read(userActiveEmergencyProvider).value;
-    final eId = activeEmergency?.id ?? 'emergency_active_demo';
+    final eId = widget.emergencyId ?? activeEmergency?.id ?? 'emergency_active_demo';
 
     ref.read(liveLocationServiceProvider).startTracking(
           emergencyId: eId,
@@ -78,6 +92,17 @@ class _MyEmergencyScreenState extends ConsumerState<MyEmergencyScreen>
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(userActiveEmergencyProvider, (previous, next) {
+      final emergency = next.value;
+      if (emergency != null) {
+        final status = emergency.status.toLowerCase();
+        if (status == 'resolved' || status == 'cancelled') {
+          debugPrint('MyEmergencyScreen: Emergency $status. Stopping victim live tracking.');
+          ref.read(liveLocationServiceProvider).stopTracking();
+        }
+      }
+    });
+
     return Scaffold(
       backgroundColor: AppColors.errorContainer,
       body: Stack(

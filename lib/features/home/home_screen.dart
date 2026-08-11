@@ -30,11 +30,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final emergencyRepo = ref.read(emergencyRepositoryProvider);
 
     final userId = activeUid ?? sessionUid ?? authUser?.uid ?? '';
+    String? emergencyId;
     try {
       final posResult = await ref.read(liveLocationServiceProvider).getCurrentPositionOrFallback();
       debugPrint('[HOME SCREEN] SOS triggered. Position acquired: lat=${posResult.latitude}, lng=${posResult.longitude}, isFallback=${posResult.isFallback}');
 
-      final emergencyId = await emergencyRepo.createEmergency(
+      emergencyId = await emergencyRepo.createEmergency(
         userId: userId,
         deviceId: 'device_raksha_shoe_01',
         triggerType: 'manual_sos',
@@ -60,7 +61,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     }
 
     if (mounted) {
-      context.push('/my-sos');
+      if (emergencyId != null && emergencyId.isNotEmpty) {
+        context.push('/my-sos?emergencyId=$emergencyId');
+      } else {
+        context.push('/my-sos');
+      }
     }
   }
 

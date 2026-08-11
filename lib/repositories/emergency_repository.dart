@@ -365,6 +365,13 @@ class EmergencyRepository {
     };
 
     try {
+      if (role.toLowerCase() == 'victim') {
+        debugPrint('====================================');
+        debugPrint('VICTIM FIRESTORE WRITE:');
+        debugPrint('path=${locationRef.path}');
+        debugPrint('====================================');
+      }
+
       await locationRef.set(data, SetOptions(merge: true));
 
       // Also update primary emergency doc if victim
@@ -388,9 +395,17 @@ class EmergencyRepository {
         .collection('locations')
         .snapshots()
         .map((snap) {
-      return snap.docs
+      final docs = snap.docs
           .map((doc) => EmergencyLocationModel.fromFirestore(doc))
           .toList();
+      debugPrint('====================================');
+      debugPrint('GUARDIAN LOCATION LISTENER:');
+      debugPrint('documents received=${docs.length}');
+      for (final d in docs) {
+        debugPrint(' - [${d.role.toUpperCase()}] name=${d.name}, uid=${d.userId}, lat=${d.latitude}, lng=${d.longitude}, isFallback=${d.isFallback}');
+      }
+      debugPrint('====================================');
+      return docs;
     });
   }
 }

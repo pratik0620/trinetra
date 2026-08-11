@@ -171,6 +171,22 @@ class LiveLocationService {
     try {
       final posResult = await getCurrentPositionOrFallback();
 
+      if (role.toLowerCase() == 'victim') {
+        debugPrint('====================================');
+        debugPrint('VICTIM LOCATION:');
+        debugPrint('lat=${posResult.latitude}');
+        debugPrint('lon=${posResult.longitude}');
+        debugPrint('emergencyId=$emergencyId');
+        debugPrint('uid=$userId');
+        debugPrint('====================================');
+      } else {
+        debugPrint('====================================');
+        debugPrint('GUARDIAN LOCATION:');
+        debugPrint('lat=${posResult.latitude}');
+        debugPrint('lon=${posResult.longitude}');
+        debugPrint('====================================');
+      }
+
       await _emergencyRepository.updateUserEmergencyLocation(
         emergencyId: emergencyId,
         userId: userId,

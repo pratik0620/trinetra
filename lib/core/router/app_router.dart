@@ -108,7 +108,9 @@ class AppRouter {
       GoRoute(
         path: '/my-sos',
         parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) => const MyEmergencyScreen(),
+        builder: (context, state) => MyEmergencyScreen(
+          emergencyId: state.uri.queryParameters['emergencyId'],
+        ),
       ),
       GoRoute(
         path: '/guardian-sos-active',
