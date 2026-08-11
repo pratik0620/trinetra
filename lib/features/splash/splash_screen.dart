@@ -151,60 +151,14 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    // Shield + Compass Logo Hybrid
-                    Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        Container(
-                          width: 120,
-                          height: 120,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: AppColors.primaryContainer.withOpacity(0.15),
-                            boxShadow: [
-                              BoxShadow(
-                                color: AppColors.primaryContainer.withOpacity(0.3),
-                                blurRadius: 40,
-                                spreadRadius: 10,
-                              ),
-                            ],
-                          ),
-                        ),
-                        const Icon(
-                          Icons.security_rounded,
-                          size: 72,
-                          color: AppColors.primary,
-                        ),
-                        Icon(
-                          Icons.explore_outlined,
-                          size: 36,
-                          color: AppColors.onPrimaryContainer.withOpacity(0.8),
-                        ),
-                      ],
+                    // RAKSHA Splash Logo — final approved asset
+                    Image.asset(
+                      'assets/images/raksha_logo.png',
+                      width: 240,
+                      height: 240,
+                      fit: BoxFit.contain,
                     ),
-                    const SizedBox(height: 24),
-                    const Text(
-                      'RAKSHA',
-                      style: TextStyle(
-                        fontSize: 44,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 1.5,
-                        color: AppColors.primary,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    const SizedBox(
-                      width: 260,
-                      child: Text(
-                        'Protection that never walks alone.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: AppColors.onSurfaceVariant,
-                          height: 1.4,
-                        ),
-                      ),
-                    ),
+
                   ],
                 ),
               ),

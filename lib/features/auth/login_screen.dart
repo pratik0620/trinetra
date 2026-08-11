@@ -100,25 +100,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 children: [
                   const Spacer(),
 
-                  // Logo & Branding
-                  const CircleAvatar(
-                    radius: 36,
-                    backgroundColor: AppColors.primaryContainer,
-                    child: Icon(
-                      Icons.security_rounded,
-                      size: 40,
-                      color: AppColors.onPrimaryContainer,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'RAKSHA',
-                    style: TextStyle(
-                      fontSize: 32,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 1.2,
-                      color: AppColors.primary,
-                    ),
+                  // RAKSHA Logo
+                  Image.asset(
+                    'assets/images/raksha_logo.png',
+                    height: 72,
                   ),
                   const SizedBox(height: 24),
 
