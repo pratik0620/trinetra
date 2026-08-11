@@ -46,8 +46,14 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     bool navigated = false;
 
     try {
+      // 1. Initialize and request location permissions on app startup
+      final locationService = ref.read(liveLocationServiceProvider);
+      final permGranted = await locationService.checkAndRequestPermission();
+      debugPrint('[SPLASH] Location permission status on app launch: granted=$permGranted');
+
       final authService = ref.read(authServiceProvider);
       final userRepo = ref.read(userRepositoryProvider);
+
 
       final savedPhone = await authService
           .getLocalSessionPhone()

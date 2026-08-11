@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import '../../../core/config/location_config.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../models/emergency_location_model.dart';
+
 
 class EmergencyMap extends StatefulWidget {
   final double? latitude;
@@ -124,7 +126,7 @@ class _EmergencyMapState extends State<EmergencyMap> {
     if (widget.latitude != null && widget.longitude != null) {
       return LatLng(widget.latitude!, widget.longitude!);
     }
-    return const LatLng(28.6139, 77.2090);
+    return LatLng(LocationConfig.fallbackLatitude, LocationConfig.fallbackLongitude);
   }
 
   void _fitMapBounds() {

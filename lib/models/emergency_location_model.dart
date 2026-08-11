@@ -6,6 +6,7 @@ class EmergencyLocationModel {
   final String role; // 'victim' or 'guardian'
   final double latitude;
   final double longitude;
+  final bool isFallback;
   final DateTime updatedAt;
 
   const EmergencyLocationModel({
@@ -14,6 +15,7 @@ class EmergencyLocationModel {
     required this.role,
     required this.latitude,
     required this.longitude,
+    this.isFallback = false,
     required this.updatedAt,
   });
 
@@ -34,6 +36,7 @@ class EmergencyLocationModel {
       role: (data['role']?.toString() ?? 'guardian').toLowerCase(),
       latitude: (data['latitude'] as num?)?.toDouble() ?? 0.0,
       longitude: (data['longitude'] as num?)?.toDouble() ?? 0.0,
+      isFallback: data['isFallback'] == true || data['isFallback']?.toString() == 'true',
       updatedAt: parsedTime,
     );
   }
@@ -53,6 +56,7 @@ class EmergencyLocationModel {
       role: (data['role']?.toString() ?? 'guardian').toLowerCase(),
       latitude: (data['latitude'] as num?)?.toDouble() ?? 0.0,
       longitude: (data['longitude'] as num?)?.toDouble() ?? 0.0,
+      isFallback: data['isFallback'] == true || data['isFallback']?.toString() == 'true',
       updatedAt: parsed,
     );
   }
@@ -64,6 +68,7 @@ class EmergencyLocationModel {
       'role': role,
       'latitude': latitude,
       'longitude': longitude,
+      'isFallback': isFallback,
       'updatedAt': FieldValue.serverTimestamp(),
     };
   }

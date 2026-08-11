@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
+import '../core/config/location_config.dart';
 import '../models/emergency_location_model.dart';
 import '../models/emergency_model.dart';
 import '../models/offline_emergency_model.dart';
 import '../models/safety_event_model.dart';
+import '../services/live_location_service.dart';
 
 class EmergencyRepository {
   final FirebaseFirestore _firestore;
@@ -39,8 +41,9 @@ class EmergencyRepository {
             ? existing.userName
             : model.userName,
         phoneNumber: existing.phoneNumber ?? model.phoneNumber,
-        latitude: existing.latitude ?? model.latitude,
-        longitude: existing.longitude ?? model.longitude,
+        latitude: model.latitude ?? existing.latitude,
+        longitude: model.longitude ?? existing.longitude,
+        isFallback: model.isFallback,
         status: newRank >= oldRank ? model.status : existing.status,
       );
     }
@@ -124,10 +127,29 @@ class EmergencyRepository {
     required String userId,
     required String deviceId,
     required String triggerType,
-    double latitude = 28.6139,
-    double longitude = 77.2090,
+    double? latitude,
+    double? longitude,
+    bool isFallback = false,
     double accuracy = 5.0,
   }) async {
+    double finalLat = latitude ?? 0.0;
+    double finalLng = longitude ?? 0.0;
+    bool finalIsFallback = isFallback;
+
+    if (finalLat == 0.0 && finalLng == 0.0) {
+      final posResult = await LiveLocationService().getCurrentPositionOrFallback();
+      finalLat = posResult.latitude;
+      finalLng = posResult.longitude;
+      finalIsFallback = posResult.isFallback;
+    }
+
+    LocationConfig.logLocationStatus(
+      latitude: finalLat,
+      longitude: finalLng,
+      isFallback: finalIsFallback,
+      tag: 'EMERGENCY_REPO_CREATE',
+    );
+
     final docRef = _emergencies.doc();
     final emergency = EmergencyModel(
       id: docRef.id,
@@ -135,9 +157,10 @@ class EmergencyRepository {
       deviceId: deviceId,
       triggerType: triggerType,
       status: 'active',
-      latitude: latitude,
-      longitude: longitude,
+      latitude: finalLat,
+      longitude: finalLng,
       accuracy: accuracy,
+      isFallback: finalIsFallback,
     );
 
     try {
@@ -149,8 +172,8 @@ class EmergencyRepository {
         userId: userId,
         type: triggerType == 'manual_sos' ? 'sos_triggered' : 'manual_stomp',
         status: 'Critical',
-        latitude: latitude,
-        longitude: longitude,
+        latitude: finalLat,
+        longitude: finalLng,
         timestamp: DateTime.now(),
         emergencyId: docRef.id,
       );
@@ -165,8 +188,9 @@ class EmergencyRepository {
       userId: userId,
       userName: 'You',
       triggerType: triggerType,
-      latitude: latitude,
-      longitude: longitude,
+      latitude: finalLat,
+      longitude: finalLng,
+      isFallback: finalIsFallback,
       timestamp: DateTime.now(),
       status: 'active',
       source: 'manual',
@@ -247,8 +271,8 @@ class EmergencyRepository {
           userId: userId,
           type: 'sos_cancelled',
           status: 'Resolved',
-          latitude: (data['latitude'] as num?)?.toDouble() ?? cached?.latitude ?? 28.6139,
-          longitude: (data['longitude'] as num?)?.toDouble() ?? cached?.longitude ?? 77.2090,
+          latitude: (data['latitude'] as num?)?.toDouble() ?? cached?.latitude ?? 0.0,
+          longitude: (data['longitude'] as num?)?.toDouble() ?? cached?.longitude ?? 0.0,
           timestamp: DateTime.now(),
           emergencyId: emergencyId,
         );
@@ -323,6 +347,7 @@ class EmergencyRepository {
     required String role, // 'victim' or 'guardian'
     required double latitude,
     required double longitude,
+    bool isFallback = false,
   }) async {
     final locationRef = _emergencies
         .doc(emergencyId)
@@ -335,6 +360,7 @@ class EmergencyRepository {
       'role': role.toLowerCase(),
       'latitude': latitude,
       'longitude': longitude,
+      'isFallback': isFallback,
       'updatedAt': FieldValue.serverTimestamp(),
     };
 
@@ -346,6 +372,7 @@ class EmergencyRepository {
         await _emergencies.doc(emergencyId).update({
           'latitude': latitude,
           'longitude': longitude,
+          'isFallback': isFallback,
           'updatedAt': FieldValue.serverTimestamp(),
         });
       }

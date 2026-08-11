@@ -29,8 +29,8 @@ class SafetyEventFirestoreModel {
       userId: data['userId'] ?? '',
       type: data['type'] ?? 'normal',
       status: data['status'] ?? 'Safe',
-      latitude: (data['latitude'] as num?)?.toDouble() ?? 28.6139,
-      longitude: (data['longitude'] as num?)?.toDouble() ?? 77.2090,
+      latitude: (data['latitude'] as num?)?.toDouble() ?? 0.0,
+      longitude: (data['longitude'] as num?)?.toDouble() ?? 0.0,
       timestamp: (data['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now(),
       emergencyId: data['emergencyId'],
     );

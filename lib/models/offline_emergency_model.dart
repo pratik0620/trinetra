@@ -8,6 +8,7 @@ class OfflineEmergencyModel {
   final String triggerType; // 'manual_sos', 'stomp', 'fall', 'sms'
   final double? latitude;
   final double? longitude;
+  final bool isFallback;
   final DateTime timestamp;
   final String status; // 'active', 'responding', 'resolved'
   final String source; // 'fcm', 'sms', 'manual', 'shoe'
@@ -22,6 +23,7 @@ class OfflineEmergencyModel {
     required this.triggerType,
     this.latitude,
     this.longitude,
+    this.isFallback = false,
     required this.timestamp,
     required this.status,
     required this.source,
@@ -42,6 +44,7 @@ class OfflineEmergencyModel {
       triggerType: model.triggerType,
       latitude: model.latitude == 0.0 ? null : model.latitude,
       longitude: model.longitude == 0.0 ? null : model.longitude,
+      isFallback: model.isFallback,
       timestamp: model.createdAt ?? DateTime.now(),
       status: _normalizeStatus(model.status),
       source: model.triggerType == 'manual_sos' ? 'manual' : 'shoe',
@@ -55,6 +58,7 @@ class OfflineEmergencyModel {
     final lng = double.tryParse(data['longitude']?.toString() ?? '');
     final rawTime = data['timestamp']?.toString();
     final parsedTime = rawTime != null ? DateTime.tryParse(rawTime) : null;
+    final isFb = data['isFallback'] == true || data['isFallback']?.toString() == 'true';
 
     return OfflineEmergencyModel(
       emergencyId: data['emergencyId']?.toString() ?? 'emergency_fcm_${DateTime.now().millisecondsSinceEpoch}',
@@ -64,6 +68,7 @@ class OfflineEmergencyModel {
       triggerType: data['triggerType']?.toString() ?? 'manual_sos',
       latitude: (lat != null && lat != 0.0) ? lat : null,
       longitude: (lng != null && lng != 0.0) ? lng : null,
+      isFallback: isFb,
       timestamp: parsedTime ?? DateTime.now(),
       status: _normalizeStatus(data['status']?.toString()),
       source: 'fcm',
@@ -75,6 +80,7 @@ class OfflineEmergencyModel {
   factory OfflineEmergencyModel.fromSms(Map<String, dynamic> smsMap) {
     final lat = double.tryParse(smsMap['latitude']?.toString() ?? '');
     final lng = double.tryParse(smsMap['longitude']?.toString() ?? '');
+    final isFb = smsMap['isFallback'] == true || smsMap['isFallback']?.toString() == 'true';
 
     return OfflineEmergencyModel(
       emergencyId: smsMap['emergencyId']?.toString() ?? 'sms_${DateTime.now().millisecondsSinceEpoch}',
@@ -84,6 +90,7 @@ class OfflineEmergencyModel {
       triggerType: smsMap['triggerType']?.toString() ?? 'sms',
       latitude: (lat != null && lat != 0.0) ? lat : null,
       longitude: (lng != null && lng != 0.0) ? lng : null,
+      isFallback: isFb,
       timestamp: DateTime.now(),
       status: _normalizeStatus(smsMap['status']?.toString()),
       source: 'sms',
@@ -109,6 +116,7 @@ class OfflineEmergencyModel {
     String? triggerType,
     double? latitude,
     double? longitude,
+    bool? isFallback,
     DateTime? timestamp,
     String? status,
     String? source,
@@ -123,6 +131,7 @@ class OfflineEmergencyModel {
       triggerType: triggerType ?? this.triggerType,
       latitude: latitude ?? this.latitude,
       longitude: longitude ?? this.longitude,
+      isFallback: isFallback ?? this.isFallback,
       timestamp: timestamp ?? this.timestamp,
       status: status ?? this.status,
       source: source ?? this.source,
@@ -140,6 +149,7 @@ class OfflineEmergencyModel {
       'triggerType': triggerType,
       'latitude': latitude,
       'longitude': longitude,
+      'isFallback': isFallback,
       'timestamp': timestamp.toIso8601String(),
       'status': status,
       'source': source,

@@ -6,7 +6,6 @@ import '../../models/app_models.dart';
 import '../../providers/app_providers.dart';
 import '../../providers/mock_state_provider.dart';
 import '../../providers/sensor_selectors.dart';
-import '../../providers/ble_state_provider.dart';
 import '../../shared/widgets/safety_status_card.dart';
 import '../../shared/widgets/shoe_status_card.dart';
 import '../../shared/widgets/sos_button.dart';
@@ -32,16 +31,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     final userId = activeUid ?? sessionUid ?? authUser?.uid ?? '';
     try {
+      final posResult = await ref.read(liveLocationServiceProvider).getCurrentPositionOrFallback();
+      debugPrint('[HOME SCREEN] SOS triggered. Position acquired: lat=${posResult.latitude}, lng=${posResult.longitude}, isFallback=${posResult.isFallback}');
+
       final emergencyId = await emergencyRepo.createEmergency(
         userId: userId,
         deviceId: 'device_raksha_shoe_01',
         triggerType: 'manual_sos',
+        latitude: posResult.latitude,
+        longitude: posResult.longitude,
+        isFallback: posResult.isFallback,
       );
 
       debugPrint('====================================');
       debugPrint('SOS TRIGGERED');
       debugPrint('userId = $userId');
       debugPrint('emergencyId = $emergencyId');
+      debugPrint('location = (${posResult.latitude}, ${posResult.longitude}) [isFallback=${posResult.isFallback}]');
 
       final userRepo = ref.read(userRepositoryProvider);
       final userProfile = await userRepo.getUserProfile(userId);

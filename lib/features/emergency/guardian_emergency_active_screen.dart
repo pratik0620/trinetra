@@ -142,7 +142,7 @@ class _GuardianEmergencyActiveScreenState
   }
 
   /// Fixes "OPEN IN MAPS" to launch exact live victim coordinates.
-  Future<void> _launchMaps(double? lat, double? lng) async {
+  Future<void> _launchMaps(double? lat, double? lng, {bool isFallback = false}) async {
     if (lat == null || lng == null || (lat == 0.0 && lng == 0.0)) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -158,7 +158,8 @@ class _GuardianEmergencyActiveScreenState
     final googleMapsUri =
         Uri.parse('https://www.google.com/maps/search/?api=1&query=$lat,$lng');
     debugPrint('==================================================');
-    debugPrint('OPEN IN MAPS COORD VERIFICATION: lat=$lat, lng=$lng');
+    debugPrint('OPEN IN MAPS VERIFICATION: lat=$lat, lng=$lng');
+    debugPrint('Location Type: ${isFallback ? "FALLBACK (GPS unavailable)" : "LIVE GPS"}');
     debugPrint('Launching URL: $googleMapsUri');
     debugPrint('==================================================');
 
@@ -172,7 +173,7 @@ class _GuardianEmergencyActiveScreenState
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Location: ${lat.toStringAsFixed(5)}, ${lng.toStringAsFixed(5)}'),
+            content: Text('${isFallback ? "Fallback Location" : "Location"}: ${lat.toStringAsFixed(5)}, ${lng.toStringAsFixed(5)}'),
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -229,10 +230,15 @@ class _GuardianEmergencyActiveScreenState
 
     final victimLat = victimLocationDoc?.latitude ?? emergency?.latitude;
     final victimLng = victimLocationDoc?.longitude ?? emergency?.longitude;
+    final isLocationFallback = (victimLocationDoc?.isFallback ?? emergency?.isFallback) ?? false;
 
     final hasVictimLocation = victimLat != null &&
         victimLng != null &&
         (victimLat != 0.0 || victimLng != 0.0);
+
+    if (hasVictimLocation) {
+      debugPrint('[GUARDIAN SCREEN] Displaying ${isLocationFallback ? "FALLBACK" : "LIVE GPS"} victim location: ($victimLat, $victimLng)');
+    }
 
     final victimName = emergency?.userName.isNotEmpty == true &&
             emergency?.userName != 'RAKSHA Contact'
@@ -250,10 +256,10 @@ class _GuardianEmergencyActiveScreenState
         : _elapsedSeconds;
     final displaySeconds = timeDiff > 0 ? timeDiff : _elapsedSeconds;
 
-    // Calculate Location Age
-    String ageText = 'Updated just now';
-    bool isStaleLocation = false;
-    if (victimLocationDoc != null) {
+    // Calculate Location Age & Fallback Status
+    String ageText = isLocationFallback ? '⚠ Fallback location (GPS unavailable)' : 'Updated just now';
+    bool isStaleLocation = isLocationFallback;
+    if (victimLocationDoc != null && !isLocationFallback) {
       final sec = victimLocationDoc.secondsAgo;
       isStaleLocation = victimLocationDoc.isStale;
       ageText = isStaleLocation ? '⚠ Updated ${sec}s ago' : 'Updated ${sec}s ago';
@@ -449,7 +455,7 @@ class _GuardianEmergencyActiveScreenState
                       _buildInfoTile(
                         'Victim Location',
                         hasVictimLocation
-                            ? '${victimLat!.toStringAsFixed(4)}, ${victimLng!.toStringAsFixed(4)}'
+                            ? '${victimLat.toStringAsFixed(4)}, ${victimLng.toStringAsFixed(4)}'
                             : 'Unavailable',
                         hasVictimLocation ? AppColors.onSurface : AppColors.error,
                       ),
@@ -516,7 +522,7 @@ class _GuardianEmergencyActiveScreenState
                           height: 50,
                           child: ElevatedButton.icon(
                             onPressed: hasVictimLocation
-                                ? () => _launchMaps(victimLat, victimLng)
+                                ? () => _launchMaps(victimLat, victimLng, isFallback: isLocationFallback)
                                 : null,
                             style: ElevatedButton.styleFrom(
                               backgroundColor: AppColors.primaryContainer,
