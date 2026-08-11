@@ -9,6 +9,13 @@ import 'package:women_safety_app/providers/ble_state_provider.dart';
 import 'package:women_safety_app/providers/sensor_selectors.dart';
 import 'package:women_safety_app/providers/mock_state_provider.dart';
 import 'package:women_safety_app/models/app_models.dart';
+import 'package:women_safety_app/models/emergency_model.dart';
+import 'package:women_safety_app/models/safety_event_model.dart';
+import 'package:women_safety_app/models/user_model.dart';
+import 'package:women_safety_app/services/auth_service.dart';
+import 'package:women_safety_app/repositories/auth_repository.dart';
+import 'package:women_safety_app/repositories/emergency_repository.dart';
+import 'package:firebase_auth/firebase_auth.dart' as fb_auth;
 
 class FakeBleService implements BleService {
   final _sensorController = StreamController<SensorData>.broadcast();
@@ -52,15 +59,124 @@ class FakeBleService implements BleService {
   Future<void> disconnect() async {}
 }
 
+class FakeEmergencyRepository implements EmergencyRepository {
+  int createEmergencyCount = 0;
+  String? lastTriggerType;
+  double? lastLat;
+  double? lastLon;
+
+  @override
+  Future<String> createEmergency({
+    required String userId,
+    required String deviceId,
+    required String triggerType,
+    double latitude = 28.6139,
+    double longitude = 77.2090,
+    double accuracy = 5.0,
+  }) async {
+    createEmergencyCount++;
+    lastTriggerType = triggerType;
+    lastLat = latitude;
+    lastLon = longitude;
+    return 'fake_emergency_id_123';
+  }
+
+  @override
+  Future<void> respondToEmergency({
+    required String emergencyId,
+    required String guardianUid,
+  }) async {}
+
+  @override
+  Future<void> resolveEmergency(String emergencyId) async {}
+
+  @override
+  Future<void> cancelEmergency(String emergencyId) async {}
+
+  @override
+  Stream<EmergencyModel?> streamEmergency(String emergencyId) => Stream.value(null);
+
+  @override
+  Stream<EmergencyModel?> streamActiveEmergencyForUser(String userId) => Stream.value(null);
+
+  @override
+  Stream<List<SafetyEventFirestoreModel>> streamSafetyHistory(String userId) => Stream.value([]);
+}
+
+class FakeAuthService implements AuthService {
+  @override
+  String normalizePhoneNumber(String rawPhone) => rawPhone;
+
+  @override
+  Future<String?> getLocalSessionUid() async => 'fake_user_uid';
+  
+  @override
+  Future<String?> getLocalSessionPhone() async => '+919876543210';
+  
+  @override
+  Future<void> saveLocalSession({required String phone, required String uid}) async {}
+
+  @override
+  Future<void> clearLocalSession() async {}
+
+  @override
+  Future<UserModel?> findUserByPhone(String phone) async => null;
+
+  @override
+  Future<UserModel> createUser({required String rawPhone, required String firstName, required String lastName}) async {
+    return UserModel(uid: 'fake_user_uid', phone: rawPhone, firstName: firstName, lastName: lastName, name: '$firstName $lastName', photoUrl: '');
+  }
+}
+
+class FakeAuthRepository implements AuthRepository {
+  @override
+  fb_auth.User? get currentUser => null;
+
+  @override
+  AuthService get authService => FakeAuthService();
+
+  @override
+  Stream<fb_auth.User?> get authStateChanges => Stream.value(null);
+
+  @override
+  Future<UserModel?> findUserByPhone(String rawPhone) async => null;
+
+  @override
+  Future<UserModel> createUser({
+    required String rawPhone,
+    required String firstName,
+    required String lastName,
+  }) async {
+    return UserModel(uid: 'fake_user_uid', phone: rawPhone, firstName: firstName, lastName: lastName, name: '$firstName $lastName', photoUrl: '');
+  }
+
+  @override
+  Future<void> saveLocalSession(String phone, String uid) async {}
+
+  @override
+  Future<String?> getLocalSessionPhone() async => '+919876543210';
+
+  @override
+  Future<String?> getLocalSessionUid() async => 'fake_user_uid';
+
+  @override
+  Future<void> signOut() async {}
+}
+
 void main() {
   late FakeBleService fakeBleService;
+  late FakeEmergencyRepository fakeEmergencyRepo;
   late ProviderContainer container;
 
   setUp(() {
     fakeBleService = FakeBleService();
+    fakeEmergencyRepo = FakeEmergencyRepository();
     container = ProviderContainer(
       overrides: [
         bleServiceProvider.overrideWithValue(fakeBleService),
+        emergencyRepositoryProvider.overrideWithValue(fakeEmergencyRepo),
+        authServiceProvider.overrideWithValue(FakeAuthService()),
+        authRepositoryProvider.overrideWithValue(FakeAuthRepository()),
       ],
     );
     // Eagerly read to register stream listeners
@@ -209,6 +325,66 @@ void main() {
 
       final safetyStatus = container.read(effectiveSafetyStatusProvider);
       expect(safetyStatus, SafetyStatusEnum.emergency);
+    });
+
+    test('Hardware SOS triggering, de-duplication, and reset logic', () async {
+      // 1. Initially no emergency created
+      expect(fakeEmergencyRepo.createEmergencyCount, 0);
+
+      // Connect the fake BLE device
+      fakeBleService.emitConnectionState(BleConnectionState.connected);
+      await Future.delayed(Duration.zero);
+
+      // 2. Emit NORMAL packet -> no SOS triggered
+      final normalPacket = SensorData(
+        state: 'NORMAL',
+        battery: 90,
+        timestamp: DateTime.now(),
+      );
+      fakeBleService.emitSensorData(normalPacket);
+      await Future.delayed(Duration.zero);
+      expect(fakeEmergencyRepo.createEmergencyCount, 0);
+
+      // 3. Emit EMERGENCY packet -> SOS triggered once
+      final emergencyPacket = SensorData(
+        state: 'EMERGENCY',
+        lat: 18.520430,
+        lon: 73.856743,
+        gpsFresh: true,
+        battery: 82,
+        timestamp: DateTime.now(),
+      );
+      fakeBleService.emitSensorData(emergencyPacket);
+      await Future.delayed(Duration.zero);
+
+      expect(fakeEmergencyRepo.createEmergencyCount, 1);
+      expect(fakeEmergencyRepo.lastTriggerType, 'hardware_sos');
+      expect(fakeEmergencyRepo.lastLat, 18.520430);
+      expect(fakeEmergencyRepo.lastLon, 73.856743);
+      expect(container.read(mockStateProvider).mySosActive, isTrue);
+
+      // 4. Emit another EMERGENCY packet -> createEmergency not called again (de-duplication)
+      final secondEmergency = SensorData(
+        state: 'EMERGENCY',
+        lat: 18.520430,
+        lon: 73.856743,
+        gpsFresh: true,
+        battery: 81,
+        timestamp: DateTime.now(),
+      );
+      fakeBleService.emitSensorData(secondEmergency);
+      await Future.delayed(Duration.zero);
+      expect(fakeEmergencyRepo.createEmergencyCount, 1);
+
+      // 5. Emit NORMAL packet -> resets trigger state
+      fakeBleService.emitSensorData(normalPacket);
+      await Future.delayed(Duration.zero);
+      expect(fakeEmergencyRepo.createEmergencyCount, 1);
+
+      // 6. Emit EMERGENCY packet again -> triggers second SOS
+      fakeBleService.emitSensorData(emergencyPacket);
+      await Future.delayed(Duration.zero);
+      expect(fakeEmergencyRepo.createEmergencyCount, 2);
     });
   });
 }
