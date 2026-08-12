@@ -94,38 +94,49 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                      Row(
                         children: [
-                          profileAsync.when(
-                            data: (userProfile) {
-                              final firstName = userProfile?.firstName.isNotEmpty == true
-                                  ? userProfile!.firstName
-                                  : (userProfile?.name.split(' ').first ?? 'User');
-                              return Text(
-                                'Good evening, $firstName',
-                                style: const TextStyle(
-                                  fontSize: 26,
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.onSurface,
+                          Image.asset(
+                            'assets/images/raksha_logo.png',
+                            height: 44,
+                            width: 44,
+                            fit: BoxFit.contain,
+                          ),
+                          const SizedBox(width: 12),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              profileAsync.when(
+                                data: (userProfile) {
+                                  final firstName = userProfile?.firstName.isNotEmpty == true
+                                      ? userProfile!.firstName
+                                      : (userProfile?.name.split(' ').first ?? 'User');
+                                  return Text(
+                                    'Good evening, $firstName',
+                                    style: const TextStyle(
+                                      fontSize: 26,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.onSurface,
+                                    ),
+                                  );
+                                },
+                                loading: () => const SizedBox(
+                                  width: 160,
+                                  height: 28,
+                                  child: LinearProgressIndicator(
+                                    color: AppColors.primaryContainer,
+                                  ),
                                 ),
-                              );
-                            },
-                            loading: () => const SizedBox(
-                              width: 160,
-                              height: 28,
-                              child: LinearProgressIndicator(
-                                color: AppColors.primaryContainer,
+                                error: (_, __) => const Text(
+                                  'Good evening',
+                                  style: TextStyle(
+                                    fontSize: 26,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.onSurface,
+                                  ),
+                                ),
                               ),
-                            ),
-                            error: (_, __) => const Text(
-                              'Good evening',
-                              style: TextStyle(
-                                fontSize: 26,
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.onSurface,
-                              ),
-                            ),
+                            ],
                           ),
                         ],
                       ),
