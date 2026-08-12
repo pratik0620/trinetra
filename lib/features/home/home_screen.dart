@@ -10,6 +10,7 @@ import '../../shared/widgets/safety_status_card.dart';
 import '../../shared/widgets/shoe_status_card.dart';
 import '../../shared/widgets/sos_button.dart';
 import '../emergency/guardian_notification_banner.dart';
+import '../../providers/nearby_relay_provider.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -209,6 +210,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       return ShoeStatusCard(shoeStatus: status);
                     },
                   ),
+                  const RelayStatusIndicator(),
 
                   const SizedBox(height: 28),
 
@@ -355,3 +357,96 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 }
+
+class RelayStatusIndicator extends ConsumerWidget {
+  const RelayStatusIndicator({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final relayState = ref.watch(nearbyRelayStateProvider);
+
+    if (relayState.relayState == RelayState.idle) {
+      return const SizedBox.shrink();
+    }
+
+    Color bgColor;
+    Color textColor;
+    IconData icon;
+    String titleText;
+    String subText;
+
+    if (relayState.relayState == RelayState.acknowledged) {
+      bgColor = Colors.green.withOpacity(0.12);
+      textColor = Colors.green;
+      icon = Icons.check_circle_rounded;
+      titleText = 'Emergency relayed successfully';
+      subText = 'Emergency received by nearby helper';
+    } else if (relayState.relayState == RelayState.advertising) {
+      bgColor = Colors.red.withOpacity(0.12);
+      textColor = Colors.red;
+      icon = Icons.sensors_rounded;
+      titleText = 'Offline relay active';
+      subText = 'Broadcasting offline emergency beacon...';
+    } else if (relayState.relayState == RelayState.relayed) {
+      bgColor = Colors.teal.withOpacity(0.12);
+      textColor = Colors.teal;
+      icon = Icons.cloud_done_rounded;
+      titleText = 'Emergency relayed successfully';
+      subText = 'Forwarded to safety network';
+    } else {
+      bgColor = Colors.orange.withOpacity(0.12);
+      textColor = Colors.orange;
+      icon = Icons.warning_amber_rounded;
+      titleText = 'Nearby emergency detected';
+      subText = 'Relaying alert to cloud database...';
+    }
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(top: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: textColor.withOpacity(0.2)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: textColor.withOpacity(0.15),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: textColor, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  titleText,
+                  style: TextStyle(
+                    color: textColor,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subText,
+                  style: TextStyle(
+                    color: textColor.withOpacity(0.8),
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
