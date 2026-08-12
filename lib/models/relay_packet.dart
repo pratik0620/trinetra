@@ -1,14 +1,20 @@
 class RelayPacket {
   final String deviceId;
   final String state; // 'EMERGENCY', 'WARNING', 'NORMAL', 'ACK'
+  final double? lat;
+  final double? lon;
   final int battery;
   final int timestamp;
+  final int version;
 
   RelayPacket({
     required this.deviceId,
     required this.state,
+    this.lat,
+    this.lon,
     required this.battery,
     required this.timestamp,
+    this.version = 1,
   });
 
   /// Serializes the packet into a compact CSV string for BLE transmission
@@ -57,15 +63,21 @@ class RelayPacket {
     return RelayPacket(
       deviceId: json['deviceId'] as String? ?? '',
       state: json['state'] as String? ?? 'UNKNOWN',
+      lat: (json['lat'] as num?)?.toDouble(),
+      lon: (json['lon'] as num?)?.toDouble(),
       battery: json['battery'] as int? ?? 100,
       timestamp: json['timestamp'] as int? ?? 0,
+      version: json['version'] as int? ?? 1,
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
+      'version': version,
       'deviceId': deviceId,
       'state': state,
+      if (lat != null) 'lat': lat,
+      if (lon != null) 'lon': lon,
       'battery': battery,
       'timestamp': timestamp,
     };

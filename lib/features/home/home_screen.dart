@@ -10,8 +10,7 @@ import '../../shared/widgets/safety_status_card.dart';
 import '../../shared/widgets/shoe_status_card.dart';
 import '../../shared/widgets/sos_button.dart';
 import '../emergency/guardian_notification_banner.dart';
-import '../../core/services/relay_service.dart';
-import '../../providers/relay_provider.dart';
+import '../../providers/nearby_relay_provider.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -353,12 +352,9 @@ class RelayStatusIndicator extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final relayState = ref.watch(relayStateProvider);
+    final relayState = ref.watch(nearbyRelayStateProvider);
 
-    if (!relayState.isAdvertising && 
-        !relayState.isRelayedSuccessfully && 
-        relayState.relayState != RelayState.nearbyEmergencyDetected &&
-        !relayState.isAcknowledged) {
+    if (relayState.relayState == RelayState.idle) {
       return const SizedBox.shrink();
     }
 
@@ -368,29 +364,29 @@ class RelayStatusIndicator extends ConsumerWidget {
     String titleText;
     String subText;
 
-    if (relayState.isAcknowledged) {
+    if (relayState.relayState == RelayState.acknowledged) {
       bgColor = Colors.green.withOpacity(0.12);
       textColor = Colors.green;
       icon = Icons.check_circle_rounded;
-      titleText = 'Relay Acknowledged';
+      titleText = 'Emergency relayed successfully';
       subText = 'Emergency received by nearby helper';
-    } else if (relayState.isAdvertising) {
+    } else if (relayState.relayState == RelayState.advertising) {
       bgColor = Colors.red.withOpacity(0.12);
       textColor = Colors.red;
       icon = Icons.sensors_rounded;
-      titleText = 'Relay Active';
+      titleText = 'Offline relay active';
       subText = 'Broadcasting offline emergency beacon...';
-    } else if (relayState.isRelayedSuccessfully) {
+    } else if (relayState.relayState == RelayState.relayed) {
       bgColor = Colors.teal.withOpacity(0.12);
       textColor = Colors.teal;
       icon = Icons.cloud_done_rounded;
-      titleText = 'Emergency Relayed Successfully';
+      titleText = 'Emergency relayed successfully';
       subText = 'Forwarded to safety network';
     } else {
       bgColor = Colors.orange.withOpacity(0.12);
       textColor = Colors.orange;
       icon = Icons.warning_amber_rounded;
-      titleText = 'Nearby Emergency Detected';
+      titleText = 'Nearby emergency detected';
       subText = 'Relaying alert to cloud database...';
     }
 
@@ -442,3 +438,4 @@ class RelayStatusIndicator extends ConsumerWidget {
     );
   }
 }
+

@@ -219,6 +219,10 @@ class NotificationService {
     );
   }
 
+  void showNotification({required String title, required String body, required String payload}) {
+    _showForegroundNotification(title: title, body: body, payload: payload);
+  }
+
   Future<void> clearFcmToken(String uid) async {
     try {
       final token = await _messaging.getToken();
