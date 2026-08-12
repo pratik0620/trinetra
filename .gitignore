@@ -47,3 +47,9 @@ app.*.map.json
 # Design
 design/
 functions/node_modules/
+
+# Secrets & Local Config
+.env
+*.env
+lib/core/config/app_secrets.g.dart
+assets/config/

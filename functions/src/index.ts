@@ -148,8 +148,14 @@ export const onEmergencyCreated = functions.onDocumentCreated(
       triggerType: String(triggerType),
     };
 
+    const isFallback = emergencyData.isFallback === true || emergencyData.isFallback === "true";
+    dataPayload.isFallback = isFallback ? "true" : "false";
+
     if (latitude != null) dataPayload.latitude = String(latitude);
     if (longitude != null) dataPayload.longitude = String(longitude);
+
+    console.log(`[CLOUD FUNCTION] Sending FCM with ${isFallback ? "FALLBACK" : "LIVE"} coordinates: (${latitude}, ${longitude})`);
+
 
     const message: admin.messaging.MulticastMessage = {
       tokens: tokenList,

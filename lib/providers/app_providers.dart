@@ -1,7 +1,9 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/connection_request_model.dart';
+import '../models/emergency_location_model.dart';
 import '../models/emergency_model.dart';
+import '../models/offline_emergency_model.dart';
 import '../models/safety_event_model.dart';
 import '../models/user_model.dart';
 import '../repositories/auth_repository.dart';
@@ -9,6 +11,7 @@ import '../repositories/connection_repository.dart';
 import '../repositories/emergency_repository.dart';
 import '../repositories/user_repository.dart';
 import '../services/auth_service.dart';
+import '../services/live_location_service.dart';
 import '../services/notification_service.dart';
 import '../core/services/ble_service.dart';
 
@@ -106,6 +109,12 @@ final singleEmergencyProvider =
   return emergencyRepo.streamEmergency(emergencyId);
 });
 
+final singleEmergencyUnifiedProvider =
+    StreamProvider.family<OfflineEmergencyModel?, String>((ref, emergencyId) {
+  final emergencyRepo = ref.watch(emergencyRepositoryProvider);
+  return emergencyRepo.streamUnifiedEmergency(emergencyId);
+});
+
 final userSafetyHistoryProvider =
     StreamProvider<List<SafetyEventFirestoreModel>>((ref) {
   final activeUid = ref.watch(activeUserUidProvider);
@@ -122,5 +131,18 @@ final bleServiceProvider = Provider<BleService>((ref) {
   final service = BleService();
   ref.onDispose(service.dispose);
   return service;
+});
+
+final liveLocationServiceProvider = Provider<LiveLocationService>((ref) {
+  final repo = ref.read(emergencyRepositoryProvider);
+  final service = LiveLocationService(emergencyRepository: repo);
+  ref.onDispose(service.stopTracking);
+  return service;
+});
+
+final emergencyLocationsProvider =
+    StreamProvider.family<List<EmergencyLocationModel>, String>((ref, emergencyId) {
+  final emergencyRepo = ref.watch(emergencyRepositoryProvider);
+  return emergencyRepo.streamEmergencyLocations(emergencyId);
 });
 

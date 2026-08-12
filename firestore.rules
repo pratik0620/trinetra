@@ -51,6 +51,10 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    match /emergencies/{emergencyId}/locations/{userId} {
+      allow read, write: if true;
+    }
+
     // Safety Events Collection
     match /safety_events/{eventId} {
       allow read, write: if true;
